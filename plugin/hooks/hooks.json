@@ -1,0 +1,20 @@
+{
+  "description": "Promptcellar capture hooks (M3: SessionStart + UserPromptSubmit + PostToolUse + PostToolBatch + Stop).",
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/bin/pc-hook-session", "timeout": 10 }] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/bin/pc-hook-prompt", "timeout": 10 }] }
+    ],
+    "PostToolUse": [
+      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/bin/pc-hook-tool", "timeout": 5 }] }
+    ],
+    "PostToolBatch": [
+      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/bin/pc-hook-tool", "timeout": 5 }] }
+    ],
+    "Stop": [
+      { "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/bin/pc-hook-stop", "timeout": 10 }] }
+    ]
+  }
+}

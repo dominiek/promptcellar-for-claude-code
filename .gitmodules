@@ -1,0 +1,3 @@
+[submodule "promptcellar-format"]
+	path = promptcellar-format
+	url = git@github.com:dominiek/promptcellar-format.git

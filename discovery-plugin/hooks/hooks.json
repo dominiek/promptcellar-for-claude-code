@@ -1,0 +1,12 @@
+{
+  "description": "Promptcellar discovery — dumps every hook payload + transcript snapshot for M0 design research",
+  "hooks": {
+    "SessionStart":        [{ "hooks": [{ "type": "command", "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/dump.py SessionStart",        "timeout": 10 }] }],
+    "UserPromptSubmit":    [{ "hooks": [{ "type": "command", "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/dump.py UserPromptSubmit",    "timeout": 10 }] }],
+    "UserPromptExpansion": [{ "hooks": [{ "type": "command", "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/dump.py UserPromptExpansion", "timeout": 10 }] }],
+    "PreToolUse":          [{ "hooks": [{ "type": "command", "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/dump.py PreToolUse",          "timeout": 10 }] }],
+    "PostToolUse":         [{ "hooks": [{ "type": "command", "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/dump.py PostToolUse",         "timeout": 10 }] }],
+    "PostToolBatch":       [{ "hooks": [{ "type": "command", "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/dump.py PostToolBatch",       "timeout": 10 }] }],
+    "Stop":                [{ "hooks": [{ "type": "command", "command": "python3 ${CLAUDE_PLUGIN_ROOT}/hooks/dump.py Stop",                "timeout": 10 }] }]
+  }
+}
