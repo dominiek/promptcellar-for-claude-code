@@ -1,0 +1,8 @@
+{
+  "name": "promptcellar-discovery",
+  "description": "M0 forensic-dump plugin for Promptcellar — captures every hook payload + transcript snapshot to ~/.promptcellar-discovery/. Intended for design research only.",
+  "version": "0.0.1",
+  "author": {
+    "name": "Promptcellar"
+  }
+}

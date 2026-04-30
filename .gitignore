@@ -1,0 +1,39 @@
+# macOS
+.DS_Store
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Go build output (Makefile writes binaries here)
+plugin/bin/
+*.test
+*.out
+coverage.out
+coverage.html
+
+# Release bundles produced by the curl installer build (planning/IMPLEMENTATION_PLAN.md §2.2)
+dist/
+
+# Python bytecode (discovery-plugin/hooks/dump.py)
+__pycache__/
+*.pyc
+
+# Promptcellar runtime state, gitignored per IMPLEMENTATION_PLAN.md §3.5.
+# The SessionStart hook also adds these to .git/info/exclude on first capture;
+# listing them here is belt-and-braces and makes the rule legible to humans.
+# NOTE: .promptcellar/config.json (repo-level decision) and .prompts/ (PLF data)
+# are intentionally committed — do NOT add them here.
+.promptcellar/state/
+.promptcellar/config.local.json
+
+# Discovery plugin dumps default to $HOME/.promptcellar-discovery/, but ignore
+# any stray copy at the repo root (planning/IMPLEMENTATION_PLAN.md §5.1).
+.promptcellar-discovery/
+
+# Logs and scratch
+*.log
+tmp/

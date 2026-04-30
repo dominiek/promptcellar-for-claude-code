@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-marketplace.json",
+  "name": "promptcellar",
+  "description": "Promptcellar for Claude Code — captures every prompt to .prompts/ in PLF-1 format.",
+  "owner": {
+    "name": "Promptcellar"
+  },
+  "plugins": [
+    {
+      "name": "promptcellar",
+      "description": "Capture every prompt + outcome (files touched, commits, tokens, cost) to .prompts/ in PLF-1 format. Slash commands: /promptcellar:status, :enable, :disable, :log, :doctor, :version, :uninstall. Includes an MCP server (search/log/touched/session) for the agent to query its own history.",
+      "author": {
+        "name": "Promptcellar"
+      },
+      "source": "./plugin",
+      "category": "logging"
+    }
+  ]
+}
