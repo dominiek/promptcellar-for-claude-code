@@ -27,21 +27,25 @@ Files land at:
 
 ## Install
 
-> **Status:** M3 complete. The installer (M2) and marketplace listing (M4) are in flight. For now you install from a local checkout.
+```sh
+curl -fsSL https://get.promptcellar.io/claude-code | sh
+```
+
+This adds `dominiek/promptcellar-for-claude-code` as a Claude Code marketplace and installs the plugin into `~/.claude/plugins/cache/`. Open a new Claude Code session in any git repo to start capturing.
+
+For local development from a checkout:
 
 ```sh
 make build
-claude --plugin-dir ./plugin
+bash install/dev-install.sh
 ```
 
-That registers the plugin for the current Claude Code session. After M2 lands:
+Both paths produce the same on-disk result: a registered, enabled plugin via Claude Code's own `claude plugin marketplace add` + `claude plugin install` flow. (Direct cache-dir copies bypassing that flow are silently ignored — Claude Code marks unknown-marketplace entries as `disabled`.)
+
+A pure per-session install (no marketplace registration) is also available for ad-hoc testing:
 
 ```sh
-# bridge installer
-curl -fsSL https://get.promptcellar.io/claude-code | sh
-
-# eventually
-claude plugin install promptcellar
+claude --plugin-dir ./plugin
 ```
 
 ## Default behaviour
@@ -122,25 +126,35 @@ A deeper walkthrough — buffer-then-flush rationale, transcript adapter strateg
 ## Repository layout
 
 ```
-cmd/                    # Hook binaries (one main.go each)
-  pc-hook-session/
-  pc-hook-prompt/
-  pc-hook-tool/
-  pc-hook-stop/
+cmd/                    # Six binaries, one main.go each
+  pc-hook-session/      #   SessionStart hook
+  pc-hook-prompt/       #   UserPromptSubmit hook
+  pc-hook-tool/         #   PostToolUse + PostToolBatch hooks
+  pc-hook-stop/         #   Stop hook (synchronous flush)
+  pc-cli/               #   user-facing CLI behind the slash commands
+  pc-mcp/               #   stdio MCP retrieval server
 internal/               # Shared Go packages
-  plf/                  # PLF record types + JSONL writer
-  plfignore/            # .promptcellarignore parser/matcher
-  capture/              # buffer-then-flush state machine
-  transcript/           # Claude Code transcript adapter (versioned)
-  gitsnap/              # cheap git metadata reads
-  hookpayload/          # hook stdin parsing
-  toolinfo/             # tool version detection
-  pricing/              # token → cost table
-  config/               # global/repo/personal layer resolution
+  plf/                  #   PLF record types + JSONL writer
+  plfignore/            #   .promptcellarignore parser/matcher
+  plfread/              #   read existing .prompts/ records (for CLI + MCP)
+  capture/              #   state machine + flush logic
+  transcript/           #   Claude Code transcript adapter (versioned)
+  gitsnap/              #   cheap git metadata reads
+  hookpayload/          #   hook stdin parsing
+  toolinfo/             #   tool version detection
+  pricing/              #   token → cost table
+  config/               #   global/repo/personal layer resolution
 plugin/                 # Claude Code plugin bundle
   .claude-plugin/plugin.json
   hooks/hooks.json
-  bin/                  # built binaries (gitignored)
+  commands/*.md         #   slash commands (AI-driven shells over pc-cli)
+  .mcp.json             #   pc-mcp registration
+  bin/                  #   built binaries (gitignored)
+.claude-plugin/         # Marketplace manifest (this repo IS a marketplace)
+  marketplace.json
+install/                # `curl | sh` and dev-mode installers
+scripts/                # Release flow: bump-version, release, marketplace-publish
+.github/workflows/      # ci.yml (PRs) + release.yml (tags)
 discovery-plugin/       # Throwaway forensic-dump plugin used during M0
 test/                   # Integration test scripts
 planning/               # Design + implementation plan
@@ -152,21 +166,62 @@ planning/               # Design + implementation plan
 Requires Go 1.26 or newer. The PLF JSON Schema used by the integration suite is vendored at `test/fixtures/plf-1.schema.json`; the upstream lives at [dominiek/promptcellar-format](https://github.com/dominiek/promptcellar-format).
 
 ```sh
-make build         # builds the four hook binaries into plugin/bin/
-make test          # go test ./...
-make clean         # rm -rf plugin/bin/
+git clone --recursive https://github.com/dominiek/promptcellar-for-claude-code.git
+# or, if you forgot --recursive:
+git submodule update --init
+
+make build               # all six binaries (4 hooks + pc-cli + pc-mcp) into plugin/bin/
+make test                # go test ./...
+make test-all            # unit + M1 + M2 + M3 integration suites (~30s total)
+make cross-build         # darwin/linux/windows × arm64/x64 → dist/<platform>/
+make clean               # rm -rf plugin/bin/ dist/
 ```
+
+## Cutting a release
+
+A release publishes cross-compiled tarballs (darwin/linux/windows × arm64/x64) to GitHub Releases. The marketplace publication is a separate step so updating the public Anthropic listing is an explicit, conscious action.
+
+### 1. Cut and tag
+
+```sh
+bash scripts/release.sh 0.4.0
+```
+
+The script:
+
+- Verifies the working tree is clean and you're on `main`.
+- Calls `scripts/bump-version.sh 0.4.0` (patches `plugin/.claude-plugin/plugin.json` plus the `Version` / `serverVersion` consts in `cmd/pc-cli/main.go` and `cmd/pc-mcp/main.go`).
+- Runs `make test-all`.
+- Commits the bump, creates the `v0.4.0` annotated tag, and prompts before pushing.
+
+When the tag is pushed, [`.github/workflows/release.yml`](./.github/workflows/release.yml) cross-compiles the six binaries for five platforms and uploads tarballs to a GitHub Release.
+
+To bump versions without cutting a release (e.g. during a feature branch), use the underlying script directly:
+
+```sh
+bash scripts/bump-version.sh 0.4.0-rc.1
+```
+
+### 2. Marketplace publication (separate, optional)
+
+After the GitHub Release is live, *only if* you want this version on the public Anthropic marketplace (so users worldwide can `claude plugin install promptcellar` without first registering this repo as a marketplace):
+
+```sh
+bash scripts/marketplace-publish.sh
+```
+
+It prints the marketplace entry and PR instructions for [`anthropics/claude-plugins-official`](https://github.com/anthropics/claude-plugins-official). You only need to do this once — subsequent releases reuse the same entry (it tracks the `main` branch ref).
 
 ## Status
 
-| Milestone | Scope                                                                                          | State    |
-| --------- | ---------------------------------------------------------------------------------------------- | -------- |
-| M0        | Discovery plugin; reverse-engineered Claude Code's hook payloads and transcript shape.         | done     |
-| M1        | Hook binaries; buffer-then-flush state machine; six integration scenarios; <10ms cold start.   | done     |
-| M2        | `curl \| sh` installer; slash commands; per-repo and global enable/disable.                    | next     |
-| M3        | `PostToolUse` for `files_touched` and status; transcript polling for tokens/cost.              | done     |
-| M4        | CI integration tests; signed binaries; marketplace listing.                                    | planned  |
-| M5        | Optional MCP server for retrieval queries from inside Claude Code.                             | planned  |
+| Milestone | Scope                                                                                          | State |
+| --------- | ---------------------------------------------------------------------------------------------- | ----- |
+| M0        | Discovery plugin; reverse-engineered Claude Code's hook payloads and transcript shape.         | done  |
+| M1        | Hook binaries; buffer-then-flush state machine; six integration scenarios; <10ms cold start.   | done  |
+| M2        | `curl \| sh` installer; slash commands; per-repo and global enable/disable; `.promptcellarignore`. | done  |
+| M3        | `PostToolUse` for `files_touched` and status; transcript polling for tokens/cost.              | done  |
+| M4        | CI integration tests; cross-build for 5 platforms; release workflow.                           | done  |
+| M5        | MCP retrieval server: `promptcellar.{search,log,touched,session}`.                             | done  |
 
 [`planning/IMPLEMENTATION_PLAN.md`](./planning/IMPLEMENTATION_PLAN.md) has the detail behind each row.
 
