@@ -6,6 +6,24 @@ The captured data is the **human signal** that built the code — the questions,
 
 This repo is the **Claude Code plugin** that does the capture. The on-disk format is a separate open standard — see [dominiek/promptcellar-format](https://github.com/dominiek/promptcellar-format) for the spec.
 
+## Install
+
+```sh
+curl -fsSL https://get.promptcellar.io/claude-code | sh
+```
+
+This adds `dominiek/promptcellar-for-claude-code` as a Claude Code marketplace and installs the plugin. Open a new Claude Code session in any git repo to start capturing.
+
+In-session:
+
+```
+/promptcellar:status     # confirm capture is on
+/promptcellar:log 10     # last 10 captured prompts
+/promptcellar:disable    # opt out for this repo (committed)
+```
+
+Building and installing from a checkout? See [Development](#development) below.
+
 ## What gets captured
 
 For every prompt you submit, the plugin writes one JSONL record under `.prompts/` containing:
@@ -24,25 +42,6 @@ Files land at:
 ```
 
 …bucketed by session start date (UTC), one file per session, append-only. Because every session has a unique id, two branches can never write to the same file — merge conflicts in `.prompts/` are avoided by construction.
-
-## Install
-
-> **Status:** M3 complete. The installer (M2) and marketplace listing (M4) are in flight. For now you install from a local checkout.
-
-```sh
-make build
-claude --plugin-dir ./plugin
-```
-
-That registers the plugin for the current Claude Code session. After M2 lands:
-
-```sh
-# bridge installer
-curl -fsSL https://get.promptcellar.io/claude-code | sh
-
-# eventually
-claude plugin install promptcellar
-```
 
 ## Default behaviour
 
@@ -147,15 +146,37 @@ planning/               # Design + implementation plan
                         # The PLF spec lives at https://github.com/dominiek/promptcellar-format
 ```
 
-## Building
+## Development
 
 Requires Go 1.26 or newer. The PLF JSON Schema used by the integration suite is vendored at `test/fixtures/plf-1.schema.json`; the upstream lives at [dominiek/promptcellar-format](https://github.com/dominiek/promptcellar-format).
 
 ```sh
-make build         # builds the four hook binaries into plugin/bin/
+git clone https://github.com/dominiek/promptcellar-for-claude-code.git
+cd promptcellar-for-claude-code
+
+make build         # build all binaries into plugin/bin/
 make test          # go test ./...
 make clean         # rm -rf plugin/bin/
 ```
+
+### Installing from source
+
+For development on the plugin itself, you have two options.
+
+**Per-session (no marketplace registration).** Pass `--plugin-dir` when launching Claude Code; the flag applies for that one session only:
+
+```sh
+make build
+claude --plugin-dir ./plugin
+```
+
+**Persistent dev install.** Registers this checkout as a local marketplace and installs the plugin from it, so subsequent `claude` invocations pick it up without flags:
+
+```sh
+bash install/dev-install.sh
+```
+
+The script runs `make build`, validates the manifest, calls `claude plugin marketplace add ./` against this repo, and installs `promptcellar@promptcellar`. Uninstall with `/promptcellar:uninstall` from inside Claude Code (or `claude plugin uninstall promptcellar@promptcellar` from a shell).
 
 ## Status
 
