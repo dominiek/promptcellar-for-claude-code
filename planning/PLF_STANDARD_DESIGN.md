@@ -16,14 +16,13 @@
   YYYY/
     MM/
       DD/
-        HH/
-          <session-id>.jsonl
+        <session-id>.jsonl
 ```
 
-- Bucketed by **session start time** in UTC.
+- Bucketed by **session start date** in UTC.
 - One JSONL file per session. Each line is one prompt record.
 - `<session-id>` is a UUIDv4 (or any globally-unique string the agent picks).
-- Files are append-only. A session that crosses an hour boundary keeps writing to the file in its start-hour bucket.
+- Files are append-only. A session that crosses a day boundary keeps writing to the file in its start-day bucket.
 
 ### Why this avoids merge conflicts
 

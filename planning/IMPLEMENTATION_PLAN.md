@@ -41,7 +41,7 @@ Notes from M0:
 
 **State file:** `.promptcellar/state/<session-id>.json` — gitignored, owned by exactly one process. Contains the buffered prompt + accumulating `files_touched` + session-level git/author cache.
 
-**JSONL file:** `.prompts/YYYY/MM/DD/HH/<session-id>.jsonl` — public PLF format, append-only, single-writer per file.
+**JSONL file:** `.prompts/YYYY/MM/DD/<session-id>.jsonl` — public PLF format, append-only, single-writer per file.
 
 **Crash recovery:** state files older than the running PID's session are scanned at next `SessionStart` and flushed as `interrupted` records. The "lost work" window is bounded to an active in-flight prompt, and even that becomes a recorded interrupted record — not silent data loss.
 

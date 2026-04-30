@@ -4,7 +4,7 @@ A Claude Code plugin that captures every prompt you send to the agent and stores
 
 The captured data is the **human signal** that built the code — the questions, instructions, and corrections that shaped each commit. With it you can audit who asked the agent to do what, trace a commit back to the prompt that produced it, and keep that history under your team's control instead of in a vendor's database.
 
-This repo is the **Claude Code plugin** that does the capture. The on-disk format is a separate open standard — see [`promptcellar-format/`](./promptcellar-format/) for the spec.
+This repo is the **Claude Code plugin** that does the capture. The on-disk format is a separate open standard — see [dominiek/promptcellar-format](https://github.com/dominiek/promptcellar-format) for the spec.
 
 ## What gets captured
 
@@ -20,10 +20,10 @@ Records that match a `.promptcellarignore` pattern are replaced with an `exclude
 Files land at:
 
 ```
-.prompts/YYYY/MM/DD/HH/<session-id>.jsonl
+.prompts/YYYY/MM/DD/<session-id>.jsonl
 ```
 
-…bucketed by session start time, one file per session, append-only. Because every session has a unique id, two branches can never write to the same file — merge conflicts in `.prompts/` are avoided by construction.
+…bucketed by session start date (UTC), one file per session, append-only. Because every session has a unique id, two branches can never write to the same file — merge conflicts in `.prompts/` are avoided by construction.
 
 ## Install
 
@@ -86,7 +86,7 @@ id: credential-shapes
 (ghp_[A-Za-z0-9]{36}|sk-[A-Za-z0-9]{32,})
 ```
 
-See [`promptcellar-format/SPEC.md` §4](./promptcellar-format/SPEC.md) for the full format.
+See [`promptcellar-format` SPEC §4](https://github.com/dominiek/promptcellar-format/blob/main/SPEC.md) for the full format.
 
 ## Reading your captured data
 
@@ -156,14 +156,14 @@ install/                # `curl | sh` and dev-mode installers
 scripts/                # Release flow: bump-version, release, marketplace-publish
 .github/workflows/      # ci.yml (PRs) + release.yml (tags)
 discovery-plugin/       # Throwaway forensic-dump plugin used during M0
-test/                   # Integration test scripts (m1, m2, m3)
-planning/               # Design + implementation plan + hook-payload reference
-promptcellar-format/    # The PLF spec (separate repo, vendored as a submodule)
+test/                   # Integration test scripts
+planning/               # Design + implementation plan
+                        # The PLF spec lives at https://github.com/dominiek/promptcellar-format
 ```
 
 ## Building
 
-Requires Go 1.26 or newer. The `promptcellar-format` submodule is needed for integration tests (the JSON schema lives there).
+Requires Go 1.26 or newer. The PLF JSON Schema used by the integration suite is vendored at `test/fixtures/plf-1.schema.json`; the upstream lives at [dominiek/promptcellar-format](https://github.com/dominiek/promptcellar-format).
 
 ```sh
 git clone --recursive https://github.com/dominiek/promptcellar-for-claude-code.git
