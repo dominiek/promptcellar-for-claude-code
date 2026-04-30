@@ -71,17 +71,65 @@ Enable/disable resolves through three layers, most-restrictive wins:
 
 ## Excluding sensitive prompts
 
-Drop a `.promptcellarignore` at the repo root. Each line is a POSIX ERE pattern; if it matches the prompt text, the prompt is replaced with an `excluded` stub instead of being written.
+A built-in baseline catches well-known secret shapes by default — no setup required. When a prompt matches, it's replaced with an `excluded` stub: the timeline preserves the gap (you can see capture was skipped) but the prompt text never touches `.prompts/`.
+
+### Built-in baseline (always on)
+
+Compiled into the plugin. Pattern IDs surface in `excluded.pattern_id` so dashboards can bucket-count by source.
+
+| Category | Catches | Example IDs |
+| --- | --- | --- |
+| **Cloud — AWS** | Access-key IDs (AKIA / ASIA / AGPA / etc.); env-style secret-access-key assignments | `aws-access-key-id`, `aws-secret-access-key-assignment` |
+| **Cloud — GCP** | API keys (`AIza…`), OAuth tokens (`ya29.…`), service-account JSON markers | `gcp-api-key`, `gcp-oauth-token`, `gcp-service-account-json` |
+| **Source forges** | GitHub classic + fine-grained PATs, OAuth / app / refresh tokens; GitLab PATs | `github-pat-classic`, `github-pat-fine-grained`, `gitlab-pat`, … |
+| **AI providers** | Anthropic API keys (`sk-ant-…`), OpenAI keys (`sk-…` / `sk-proj-…` / `sk-svcacct-…`) | `anthropic-api-key`, `openai-api-key` |
+| **Payment** | Stripe live/test/restricted/publishable, Twilio API key + account SID, SendGrid keys | `stripe-secret-live`, `twilio-api-key`, `sendgrid-api-key`, … |
+| **Messaging** | Slack tokens (`xox[baprs]-…`) and webhook URLs, Discord bot tokens | `slack-token`, `slack-webhook`, `discord-bot-token` |
+| **Generic** | JSON Web Tokens (three-segment), PEM private keys, DB / message-queue URLs with embedded credentials | `jwt`, `private-key-pem`, `db-url-with-password` |
+| **SaaS** | npm + PyPI tokens; Mailgun, MailChimp, Datadog, Heroku keys | `npm-token`, `pypi-token`, `mailgun-api-key`, … |
+| **Catch-all** | `API_KEY=…` / `SECRET=…` / `PRIVATE_KEY=…` style assignments with token-shaped values | `generic-secret-assignment` |
+
+The full pattern set is in [`internal/plfignore/baseline.go`](./internal/plfignore/baseline.go). It's a stable contract: pattern IDs may grow but won't be silently renamed.
+
+### Team additions: `.promptcellarignore` (committed)
+
+Drop a `.promptcellarignore` at the repo root for team-specific deny patterns the baseline doesn't cover (internal API key prefixes, paths to security runbooks, customer identifiers, etc.). Each line is a POSIX ERE pattern; an `id: <name>` line above a pattern names it for `excluded.pattern_id`. Same syntax as `.gitignore`-style files for comments and blank lines.
 
 ```
-id: secrets
-(AWS_SECRET_ACCESS_KEY|GITHUB_TOKEN|OPENAI_API_KEY)
+id: internal-api
+\bSECRET_INT_[A-Za-z0-9]{20,}\b
 
-id: credential-shapes
-(ghp_[A-Za-z0-9]{36}|sk-[A-Za-z0-9]{32,})
+id: security-paths
+\bsecurity/(runbooks|incident)\b
 ```
 
-See [`promptcellar-format` SPEC §4](https://github.com/dominiek/promptcellar-format/blob/main/SPEC.md) for the full format.
+`.promptcellarignore` is **authoritative** — a team's deny rule always wins, regardless of the baseline or the allow file below.
+
+### Override the baseline: `.promptcellarallow` (committed)
+
+Same syntax as `.promptcellarignore`, but matches *whitelist* the prompt against baseline-driven exclusions. Use this when the baseline is too aggressive — typically because docs/fixtures contain placeholder values shaped like real tokens.
+
+```
+id: docs-examples
+\bdocs/[^\s]+\.md\b
+
+id: openapi-fixtures
+\btest/fixtures/openapi/\b
+```
+
+`.promptcellarallow` only narrows the baseline; it cannot weaken `.promptcellarignore`.
+
+### Resolution order
+
+For each prompt:
+
+1. **`.promptcellarignore` matches?** → exclude. Done. (Team rule is authoritative.)
+2. **Baseline matches?**
+   - **Also matches `.promptcellarallow`?** → capture normally. (Allow overrides the baseline.)
+   - **Otherwise** → exclude.
+3. **Otherwise** → capture.
+
+See [`promptcellar-format` SPEC §4](https://github.com/dominiek/promptcellar-format/blob/main/SPEC.md) for the on-disk shape of `excluded` records.
 
 ## Reading your captured data
 
