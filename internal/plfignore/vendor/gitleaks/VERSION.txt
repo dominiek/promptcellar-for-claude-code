@@ -1,0 +1,1 @@
+09242ce9c8a60d9b051fc2d166f9e849b88c7ac0 @ 2025-11-20T15:12:31Z — Add new Looker client ID and client secret rules (#1947)

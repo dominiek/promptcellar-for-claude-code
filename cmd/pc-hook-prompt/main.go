@@ -59,8 +59,11 @@ func main() {
 	matcher, _ := plfignore.LoadAll(p.Cwd)
 	if r := matcher.Match(p.Prompt); r.Excluded {
 		reason := "matched .promptcellarignore"
-		if r.Source == plfignore.SourceBaseline {
-			reason = "matched built-in baseline (override via .promptcellarallow)"
+		switch r.Source {
+		case plfignore.SourceGitleaks:
+			reason = "matched built-in secret rule (override via .promptcellarallow)"
+		case plfignore.SourcePII:
+			reason = "matched built-in PII rule (override via .promptcellarallow)"
 		}
 		_ = capture.WriteExcludedStub(p.Cwd, capture.PromptsRoot(p.Cwd), state, reason, r.PatternID)
 		return

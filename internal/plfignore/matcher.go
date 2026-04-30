@@ -1,32 +1,41 @@
-// Package plfignore parses `.promptcellarignore` and `.promptcellarallow`
-// and matches their patterns against a prompt's text. Layered with a built-in
-// baseline (see baseline.go), it decides whether a prompt is captured normally
-// or replaced with an `excluded` stub per spec §4.
+// Package plfignore implements Promptcellar's log-redaction matcher: it
+// decides whether a prompt is captured normally or replaced with an
+// `excluded` stub per spec §4.
 //
-// Resolution order (most authoritative first):
+// "Log redaction" is the term-of-art for stripping secrets and PII out of a
+// log stream as it flows through. We borrow the framing here even though
+// the substrate is structured prompt records rather than free-form log
+// lines — the goals are the same: stop sensitive content from landing on
+// disk in the first place.
 //
-//  1. .promptcellarignore — team-authored deny rules. Always wins.
-//  2. baseline (built-in)  — covers well-known secret shapes.
-//                            Overridden by .promptcellarallow when both fire.
-//  3. .promptcellarallow   — team-authored exception list. Only narrows the
-//                            baseline; never weakens .promptcellarignore.
+// Three pattern sources, evaluated in this layered order on every prompt:
 //
-// Pattern syntax (same in both files):
+//  1. .promptcellarignore (team-authored deny list, committed)
+//                                                  — always wins.
+//  2. Built-in secret rules (vendored gitleaks default config — 222 rules,
+//                            MIT, see vendor/gitleaks/) +
+//     Built-in PII rules    (hand-rolled in pii.go — credit card / Luhn,
+//                            IBAN / MOD-97, US SSN, email, phone)
+//                                                  — overridden by allow.
+//  3. .promptcellarallow (team-authored exception list, committed)
+//                                                  — only narrows the
+//                                                    built-in layer; never
+//                                                    weakens .promptcellarignore.
+//
+// Pattern syntax (same in both team-authored files):
 //
 //   - One pattern per line. # comments and blank lines ignored.
-//   - "id: <name>" line preceding a pattern names it. Name appears in
-//     `excluded.pattern_id` for matches against the ignore file.
-//   - Patterns are POSIX EREs, applied case-insensitively by default.
-//
-// We use Go's regexp/RE2, which is a strict subset of POSIX ERE plus standard
-// extensions. For typical secret-shape patterns (alternation, character
-// classes, anchors, repetition) the dialects are interchangeable.
+//   - "id: <name>" on a line preceding a pattern names it. Name appears in
+//     `excluded.pattern_id` for that match.
+//   - Patterns are POSIX EREs (RE2-compatible Go regex), case-insensitive
+//     by default.
 package plfignore
 
 import (
 	"bufio"
 	"errors"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -46,49 +55,48 @@ type MatchSource string
 
 const (
 	SourceIgnore   MatchSource = "ignore"
-	SourceBaseline MatchSource = "baseline"
+	SourceGitleaks MatchSource = "gitleaks"
+	SourcePII      MatchSource = "pii"
 )
 
 // Result of evaluating a prompt against the layered matcher.
-//
-//   - Excluded: true if the prompt should be turned into an `excluded` stub.
-//   - PatternID: the matched pattern's id (populated only when Excluded).
-//   - Source: whether the match came from .promptcellarignore or the baseline.
 type Result struct {
 	Excluded  bool
 	PatternID string
 	Source    MatchSource
 }
 
-// Matcher composes the three layers and evaluates prompts against them.
+// Matcher composes the four layers and evaluates prompts against them.
 type Matcher struct {
 	ignore   []Pattern
-	baseline []Pattern
+	gitleaks *compiledGitleaks
+	pii      []piiPattern // shadows the package var so tests can swap
 	allow    []Pattern
 }
 
 // LoadAll builds a layered Matcher for the given repo cwd.
 //
-// The baseline is always loaded (compiled into the binary). The ignore and
-// allow files are loaded if they exist; missing files yield zero patterns at
-// that layer.
+// Built-in layers (gitleaks + PII) are always loaded — they're compiled into
+// the binary. The ignore and allow files are loaded if they exist; missing
+// files yield zero patterns at that layer.
 func LoadAll(cwd string) (*Matcher, error) {
-	ignore, err := loadFile(cwd + "/" + IgnoreFilename)
+	ignore, err := loadFile(filepath.Join(cwd, IgnoreFilename))
 	if err != nil {
 		return nil, err
 	}
-	allow, err := loadFile(cwd + "/" + AllowFilename)
+	allow, err := loadFile(filepath.Join(cwd, AllowFilename))
 	if err != nil {
 		return nil, err
 	}
 	return &Matcher{
 		ignore:   ignore,
-		baseline: compileBaseline(),
+		gitleaks: gitleaksRules(),
+		pii:      piiPatterns,
 		allow:    allow,
 	}, nil
 }
 
-// Match evaluates a prompt against the three layers and returns a Result.
+// Match evaluates a prompt against the layered matcher and returns a Result.
 // On no match, Result.Excluded is false; the caller captures normally.
 func (m *Matcher) Match(text string) Result {
 	if m == nil {
@@ -97,21 +105,31 @@ func (m *Matcher) Match(text string) Result {
 	if id, ok := matchAny(m.ignore, text); ok {
 		return Result{Excluded: true, PatternID: id, Source: SourceIgnore}
 	}
-	if id, ok := matchAny(m.baseline, text); ok {
+	if id, ok := matchGitleaks(m.gitleaks, text); ok {
 		if _, allowed := matchAny(m.allow, text); allowed {
 			return Result{}
 		}
-		return Result{Excluded: true, PatternID: id, Source: SourceBaseline}
+		return Result{Excluded: true, PatternID: id, Source: SourceGitleaks}
+	}
+	if id, ok := matchPIIWith(m.pii, text); ok {
+		if _, allowed := matchAny(m.allow, text); allowed {
+			return Result{}
+		}
+		return Result{Excluded: true, PatternID: id, Source: SourcePII}
 	}
 	return Result{}
 }
 
-// Counts returns the active pattern counts per layer. Used by doctor / status.
-func (m *Matcher) Counts() (ignore, baseline, allow int) {
+// Counts returns the active pattern counts per layer. Used by doctor.
+func (m *Matcher) Counts() (ignore, gitleaks, pii, allow int) {
 	if m == nil {
-		return 0, 0, 0
+		return 0, 0, 0, 0
 	}
-	return len(m.ignore), len(m.baseline), len(m.allow)
+	gleaks := 0
+	if m.gitleaks != nil {
+		gleaks = len(m.gitleaks.Rules)
+	}
+	return len(m.ignore), gleaks, len(m.pii), len(m.allow)
 }
 
 func matchAny(patterns []Pattern, text string) (string, bool) {
@@ -119,6 +137,22 @@ func matchAny(patterns []Pattern, text string) (string, bool) {
 		if p.Regex.MatchString(text) {
 			return p.ID, true
 		}
+	}
+	return "", false
+}
+
+// matchPIIWith is matchPII but takes the slice as a parameter so the
+// per-Matcher field (which can be swapped in tests) is honoured.
+func matchPIIWith(patterns []piiPattern, text string) (id string, ok bool) {
+	for _, p := range patterns {
+		hit := p.Regex.FindString(text)
+		if hit == "" {
+			continue
+		}
+		if p.Validate != nil && !p.Validate(hit) {
+			continue
+		}
+		return p.ID, true
 	}
 	return "", false
 }
@@ -158,36 +192,8 @@ func loadFile(path string) ([]Pattern, error) {
 	return out, nil
 }
 
-// compileBaseline turns baselinePatterns (raw strings) into compiled Patterns.
-// Compiled lazily-once at process start (Matcher creation); each invocation of
-// LoadAll currently recompiles. That's a few hundred microseconds; if it ever
-// matters we'll memoise.
-func compileBaseline() []Pattern {
-	out := make([]Pattern, 0, len(baselinePatterns))
-	for _, p := range baselinePatterns {
-		// Baseline patterns may already include their own (?i) prefix where
-		// case-sensitivity matters (e.g. AWS access keys are all-uppercase).
-		// Default still adds (?i) so generic patterns work as documented.
-		expr := p.Regex
-		if !strings.HasPrefix(expr, "(?i)") && !strings.HasPrefix(expr, "(?-i)") {
-			expr = "(?i)" + expr
-		}
-		re, err := regexp.Compile(expr)
-		if err != nil {
-			// A malformed baseline pattern is a programmer error — skip it
-			// quietly rather than panicking from inside a hook subprocess.
-			continue
-		}
-		out = append(out, Pattern{ID: p.ID, Regex: re})
-	}
-	return out
-}
-
-// ─── Backwards-compat wrappers ───────────────────────────────────────────────
-// The single-file Load() API was used in M2 before the baseline + allow layers
-// existed. Kept around for callers that only want the team's deny list and
-// nothing else (none currently in-tree, but we preserve the export for any
-// out-of-tree tooling).
+// ─── Backwards-compat single-file API ────────────────────────────────────────
+// Preserved for any out-of-tree consumers that imported the M2-era API.
 
 type SingleFileMatcher struct{ Patterns []Pattern }
 

@@ -60,7 +60,7 @@ run_session_start '{"session_id":"'$SID'","transcript_path":"'$TP'","cwd":"'$D'"
 run_prompt '{"session_id":"'$SID'","transcript_path":"'$TP'","cwd":"'$D'","permission_mode":"default","hook_event_name":"UserPromptSubmit","prompt":"clean prompt"}'
 run_stop '{"session_id":"'$SID'","transcript_path":"'$TP'","cwd":"'$D'","permission_mode":"default","hook_event_name":"Stop","last_assistant_message":"ok","stop_hook_active":false}'
 # A prompt with a secret-shaped value — should produce an excluded stub, no normal record.
-run_prompt '{"session_id":"'$SID'","transcript_path":"'$TP'","cwd":"'$D'","permission_mode":"default","hook_event_name":"UserPromptSubmit","prompt":"my GITHUB_TOKEN is ghp_abcdefghijklmnopqrstuvwxyzABCDEFGHIJ"}'
+run_prompt '{"session_id":"'$SID'","transcript_path":"'$TP'","cwd":"'$D'","permission_mode":"default","hook_event_name":"UserPromptSubmit","prompt":"my GITHUB_TOKEN is ghp_K3xN9pQ7rT5wY1vZ4mB6jH2gF8sD0eAK3xN9"}'
 
 F=$(find "$D/.prompts" -name '*.jsonl' | head -1)
 LINES=$(wc -l < "$F" | tr -d ' ')
@@ -152,12 +152,12 @@ D=$(mkrepo /tmp/pc-m2-test-6)
 : > "$TP"
 
 run_session_start '{"session_id":"'$SID'","transcript_path":"'$TP'","cwd":"'$D'","permission_mode":"default","hook_event_name":"SessionStart","model":"claude-opus-4-7[1m]","source":"startup"}'
-run_prompt '{"session_id":"'$SID'","transcript_path":"'$TP'","cwd":"'$D'","permission_mode":"default","hook_event_name":"UserPromptSubmit","prompt":"please use this token: ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789"}'
+run_prompt '{"session_id":"'$SID'","transcript_path":"'$TP'","cwd":"'$D'","permission_mode":"default","hook_event_name":"UserPromptSubmit","prompt":"please use this token: ghp_K3xN9pQ7rT5wY1vZ4mB6jH2gF8sD0eAK3xN9"}'
 
 F=$(find "$D/.prompts" -name '*.jsonl' | head -1)
 [ -n "$F" ] && pass "stub written for baseline-matched prompt" || fail "expected jsonl after baseline match"
 PATTERN=$(python3 -c "import json; print(json.loads(open('$F').readline()).get('excluded',{}).get('pattern_id','-'))")
-[ "$PATTERN" = "github-pat-classic" ] && pass "baseline pattern_id=github-pat-classic" || fail "expected github-pat-classic, got $PATTERN"
+[ "$PATTERN" = "github-pat" ] && pass "baseline pattern_id=github-pat (gitleaks rule)" || fail "expected github-pat, got $PATTERN"
 HAS_PROMPT=$(python3 -c "import json; print('yes' if 'prompt' in json.loads(open('$F').readline()) else 'no')")
 [ "$HAS_PROMPT" = "no" ] && pass "stub omits prompt text (no leak via baseline)" || fail "stub contains prompt"
 validate_jsonl "$F"
@@ -175,7 +175,7 @@ EOF
 
 run_session_start '{"session_id":"'$SID'","transcript_path":"'$TP'","cwd":"'$D'","permission_mode":"default","hook_event_name":"SessionStart","model":"claude-opus-4-7[1m]","source":"startup"}'
 # Same secret-shaped value, but with a docs/...md trigger that the allow rule whitelists.
-run_prompt '{"session_id":"'$SID'","transcript_path":"'$TP'","cwd":"'$D'","permission_mode":"default","hook_event_name":"UserPromptSubmit","prompt":"docs/auth-tokens.md uses ghp_aBcDeFgHiJkLmNoPqRsTuVwXyZ0123456789 as a placeholder example"}'
+run_prompt '{"session_id":"'$SID'","transcript_path":"'$TP'","cwd":"'$D'","permission_mode":"default","hook_event_name":"UserPromptSubmit","prompt":"docs/auth-tokens.md uses ghp_K3xN9pQ7rT5wY1vZ4mB6jH2gF8sD0eAK3xN9 as a placeholder example"}'
 run_stop '{"session_id":"'$SID'","transcript_path":"'$TP'","cwd":"'$D'","permission_mode":"default","hook_event_name":"Stop","last_assistant_message":"ok","stop_hook_active":false}'
 
 F=$(find "$D/.prompts" -name '*.jsonl' | head -1)
@@ -206,6 +206,41 @@ run_prompt '{"session_id":"'$SID'","transcript_path":"'$TP'","cwd":"'$D'","permi
 F=$(find "$D/.prompts" -name '*.jsonl' | head -1)
 PATTERN=$(python3 -c "import json; print(json.loads(open('$F').readline()).get('excluded',{}).get('pattern_id','-'))")
 [ "$PATTERN" = "team-deny" ] && pass "team .promptcellarignore wins (pattern_id=team-deny)" || fail "expected team-deny, got $PATTERN"
+validate_jsonl "$F"
+
+# ─── M2.9: PII layer catches a Luhn-valid credit card ────────────────────────
+echo "[M2.9] PII layer excludes a Luhn-valid credit card number"
+SID=m2-pii-cc-aaaa-bbbb-cccc-dddddddddddd
+TP=/tmp/pc-m2-test-9.transcript.jsonl
+D=$(mkrepo /tmp/pc-m2-test-9)
+: > "$TP"
+
+run_session_start '{"session_id":"'$SID'","transcript_path":"'$TP'","cwd":"'$D'","permission_mode":"default","hook_event_name":"SessionStart","model":"claude-opus-4-7[1m]","source":"startup"}'
+# Visa test card 4111-1111-1111-1111 — Luhn-valid.
+run_prompt '{"session_id":"'$SID'","transcript_path":"'$TP'","cwd":"'$D'","permission_mode":"default","hook_event_name":"UserPromptSubmit","prompt":"customer paid with 4111111111111111 last week"}'
+
+F=$(find "$D/.prompts" -name '*.jsonl' | head -1)
+PATTERN=$(python3 -c "import json; print(json.loads(open('$F').readline()).get('excluded',{}).get('pattern_id','-'))")
+[ "$PATTERN" = "credit-card" ] && pass "PII pattern_id=credit-card" || fail "expected credit-card, got $PATTERN"
+HAS_PROMPT=$(python3 -c "import json; print('yes' if 'prompt' in json.loads(open('$F').readline()) else 'no')")
+[ "$HAS_PROMPT" = "no" ] && pass "stub omits prompt text (CC not leaked)" || fail "stub contains prompt"
+validate_jsonl "$F"
+
+# ─── M2.10: PII Luhn validator rejects 16-digit non-cards ────────────────────
+echo "[M2.10] Luhn check rejects 16-digit IDs that aren't real cards"
+SID=m2-pii-noluhn-aaaa-bbbb-cccc-dddddddddd
+TP=/tmp/pc-m2-test-10.transcript.jsonl
+D=$(mkrepo /tmp/pc-m2-test-10)
+: > "$TP"
+
+run_session_start '{"session_id":"'$SID'","transcript_path":"'$TP'","cwd":"'$D'","permission_mode":"default","hook_event_name":"SessionStart","model":"claude-opus-4-7[1m]","source":"startup"}'
+# Same shape as a Visa card but last digit changed — fails Luhn → must NOT match.
+run_prompt '{"session_id":"'$SID'","transcript_path":"'$TP'","cwd":"'$D'","permission_mode":"default","hook_event_name":"UserPromptSubmit","prompt":"order id 4111111111111112 looks similar but is not a card"}'
+run_stop '{"session_id":"'$SID'","transcript_path":"'$TP'","cwd":"'$D'","permission_mode":"default","hook_event_name":"Stop","last_assistant_message":"ok","stop_hook_active":false}'
+
+F=$(find "$D/.prompts" -name '*.jsonl' | head -1)
+HAS_PROMPT=$(python3 -c "import json; print('yes' if 'prompt' in json.loads(open('$F').readline()) else 'no')")
+[ "$HAS_PROMPT" = "yes" ] && pass "captured normally (Luhn rejected the FP)" || fail "expected captured, got excluded"
 validate_jsonl "$F"
 
 echo
