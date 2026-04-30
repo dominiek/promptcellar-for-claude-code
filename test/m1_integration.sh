@@ -8,7 +8,7 @@ set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 BIN="$REPO/plugin/bin"
-SCHEMA="$REPO/promptcellar-format/schemas/plf-1.schema.json"
+SCHEMA="$REPO/test/fixtures/plf-1.schema.json"
 
 if [ ! -x "$BIN/pc-hook-session" ]; then
   echo "binaries not built — run 'make build' first" >&2
@@ -93,7 +93,7 @@ user_prompt_submit $SID "$D" "$TP" "first prompt" | "$BIN/pc-hook-prompt" >/dev/
 stop_event $SID "$D" "$TP" "did the work" | "$BIN/pc-hook-stop" >/dev/null
 LINES=$(find "$D/.prompts" -name '*.jsonl' -exec wc -l {} \; | awk '{print $1}' | tr -d ' ')
 [ "$LINES" = "1" ] && pass "1 record emitted at Stop (synchronous flush)" || fail "expected 1 record, got $LINES"
-validate_jsonl "$D/.prompts"/*/*/*/*/*.jsonl
+validate_jsonl "$D/.prompts"/*/*/*/*.jsonl
 F=$(find "$D/.prompts" -name '*.jsonl' | head -1)
 STATUS=$(python3 -c "import json; print(json.loads(open('$F').readline())['outcome']['status'])")
 [ "$STATUS" = "completed" ] && pass "outcome.status=completed" || fail "expected completed, got $STATUS"

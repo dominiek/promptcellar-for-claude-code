@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://promptcellar.org/schemas/plf-1.schema.json",
+  "title": "Promptcellar Logging Format v1",
+  "description": "One PLF record. JSONL files at .prompts/YYYY/MM/DD/HH/<session-id>.jsonl contain one record per line.",
+  "type": "object",
+  "required": ["version", "id", "session_id", "timestamp", "author", "tool", "model"],
+  "properties": {
+    "version": { "const": "plf-1" },
+    "id": { "type": "string", "format": "uuid" },
+    "session_id": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "author": { "$ref": "#/$defs/author" },
+    "tool": { "$ref": "#/$defs/tool" },
+    "model": { "$ref": "#/$defs/model" },
+    "prompt": { "type": "string" },
+    "git": { "$ref": "#/$defs/git" },
+    "parent": { "$ref": "#/$defs/parent" },
+    "outcome": { "$ref": "#/$defs/outcome" },
+    "enrichments": { "$ref": "#/$defs/enrichments" },
+    "excluded": { "$ref": "#/$defs/excluded" }
+  },
+  "oneOf": [
+    {
+      "title": "Captured prompt record",
+      "required": ["prompt"],
+      "not": { "required": ["excluded"] }
+    },
+    {
+      "title": "Excluded stub record",
+      "required": ["excluded"],
+      "allOf": [
+        { "not": { "required": ["prompt"] } },
+        { "not": { "required": ["outcome"] } },
+        { "not": { "required": ["enrichments"] } },
+        { "not": { "required": ["git"] } },
+        { "not": { "required": ["parent"] } }
+      ]
+    }
+  ],
+  "$defs": {
+    "author": {
+      "type": "object",
+      "required": ["email", "name"],
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "name": { "type": "string", "minLength": 1 },
+        "id": { "type": ["string", "null"] }
+      }
+    },
+    "tool": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "model": {
+      "type": "object",
+      "required": ["provider", "name"],
+      "properties": {
+        "provider": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": ["string", "null"] }
+      }
+    },
+    "git": {
+      "type": "object",
+      "properties": {
+        "branch": { "type": "string", "minLength": 1 },
+        "head_commit": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" },
+        "dirty": { "type": "boolean" }
+      }
+    },
+    "parent": {
+      "type": "object",
+      "required": ["prompt_id"],
+      "properties": {
+        "prompt_id": { "type": "string", "format": "uuid" }
+      }
+    },
+    "outcome": {
+      "type": "object",
+      "properties": {
+        "summary": { "type": "string" },
+        "files_touched": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "commits": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[0-9a-f]{7,40}$" }
+        },
+        "status": { "enum": ["completed", "errored", "interrupted", "unknown"] }
+      }
+    },
+    "enrichments": {
+      "type": "object",
+      "properties": {
+        "tokens": {
+          "type": "object",
+          "properties": {
+            "input": { "type": "integer", "minimum": 0 },
+            "output": { "type": "integer", "minimum": 0 },
+            "cache_read": { "type": "integer", "minimum": 0 },
+            "cache_write": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "cost_usd": { "type": "number", "minimum": 0 },
+        "duration_ms": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "excluded": {
+      "type": "object",
+      "required": ["reason"],
+      "properties": {
+        "reason": { "type": "string", "minLength": 1 },
+        "pattern_id": { "type": "string", "pattern": "^[A-Za-z0-9_-]+$" }
+      }
+    }
+  }
+}

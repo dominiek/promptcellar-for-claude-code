@@ -12,7 +12,7 @@ set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 BIN="$REPO/plugin/bin"
-SCHEMA="$REPO/promptcellar-format/schemas/plf-1.schema.json"
+SCHEMA="$REPO/test/fixtures/plf-1.schema.json"
 
 if [ ! -x "$BIN/pc-hook-tool" ]; then
   echo "binaries not built — run 'make build' first" >&2

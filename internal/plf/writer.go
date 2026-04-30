@@ -8,8 +8,13 @@ import (
 	"time"
 )
 
-// PathFor returns the canonical .prompts/YYYY/MM/DD/HH/<session>.jsonl path
-// for a given session start time (UTC) and session id.
+// PathFor returns the canonical .prompts/YYYY/MM/DD/<session>.jsonl path for
+// a given session start time (UTC) and session id.
+//
+// The hour bucket was dropped after v0.3.0 — empirically session counts per
+// hour are low and the extra directory level mostly produced one-file
+// directories. A session that crosses a day boundary keeps writing to its
+// start-day file.
 func PathFor(promptsRoot string, sessionStart time.Time, sessionID string) string {
 	t := sessionStart.UTC()
 	return filepath.Join(
@@ -17,7 +22,6 @@ func PathFor(promptsRoot string, sessionStart time.Time, sessionID string) strin
 		fmt.Sprintf("%04d", t.Year()),
 		fmt.Sprintf("%02d", int(t.Month())),
 		fmt.Sprintf("%02d", t.Day()),
-		fmt.Sprintf("%02d", t.Hour()),
 		sessionID+".jsonl",
 	)
 }
