@@ -6,6 +6,24 @@ The captured data is the **human signal** that built the code — the questions,
 
 This repo is the **Claude Code plugin** that does the capture. The on-disk format is a separate open standard — see [dominiek/promptcellar-format](https://github.com/dominiek/promptcellar-format) for the spec.
 
+## Install
+
+```sh
+curl -fsSL https://get.promptcellar.io/claude-code | sh
+```
+
+This adds `dominiek/promptcellar-for-claude-code` as a Claude Code marketplace and installs the plugin. Open a new Claude Code session in any git repo to start capturing.
+
+In-session:
+
+```
+/promptcellar:status     # confirm capture is on
+/promptcellar:log 10     # last 10 captured prompts
+/promptcellar:disable    # opt out for this repo (committed)
+```
+
+Building or installing from a checkout instead? See [Development](#development) below.
+
 ## What gets captured
 
 For every prompt you submit, the plugin writes one JSONL record under `.prompts/` containing:
@@ -24,29 +42,6 @@ Files land at:
 ```
 
 …bucketed by session start date (UTC), one file per session, append-only. Because every session has a unique id, two branches can never write to the same file — merge conflicts in `.prompts/` are avoided by construction.
-
-## Install
-
-```sh
-curl -fsSL https://get.promptcellar.io/claude-code | sh
-```
-
-This adds `dominiek/promptcellar-for-claude-code` as a Claude Code marketplace and installs the plugin into `~/.claude/plugins/cache/`. Open a new Claude Code session in any git repo to start capturing.
-
-For local development from a checkout:
-
-```sh
-make build
-bash install/dev-install.sh
-```
-
-Both paths produce the same on-disk result: a registered, enabled plugin via Claude Code's own `claude plugin marketplace add` + `claude plugin install` flow. (Direct cache-dir copies bypassing that flow are silently ignored — Claude Code marks unknown-marketplace entries as `disabled`.)
-
-A pure per-session install (no marketplace registration) is also available for ad-hoc testing:
-
-```sh
-claude --plugin-dir ./plugin
-```
 
 ## Default behaviour
 
@@ -161,14 +156,13 @@ planning/               # Design + implementation plan
                         # The PLF spec lives at https://github.com/dominiek/promptcellar-format
 ```
 
-## Building
+## Development
 
 Requires Go 1.26 or newer. The PLF JSON Schema used by the integration suite is vendored at `test/fixtures/plf-1.schema.json`; the upstream lives at [dominiek/promptcellar-format](https://github.com/dominiek/promptcellar-format).
 
 ```sh
-git clone --recursive https://github.com/dominiek/promptcellar-for-claude-code.git
-# or, if you forgot --recursive:
-git submodule update --init
+git clone https://github.com/dominiek/promptcellar-for-claude-code.git
+cd promptcellar-for-claude-code
 
 make build               # all six binaries (4 hooks + pc-cli + pc-mcp) into plugin/bin/
 make test                # go test ./...
@@ -176,6 +170,27 @@ make test-all            # unit + M1 + M2 + M3 integration suites (~30s total)
 make cross-build         # darwin/linux/windows × arm64/x64 → dist/<platform>/
 make clean               # rm -rf plugin/bin/ dist/
 ```
+
+### Installing from source
+
+Two options for working off a local checkout.
+
+**Per-session (no marketplace registration).** Pass `--plugin-dir` when launching Claude Code; the flag applies for that one session only:
+
+```sh
+make build
+claude --plugin-dir ./plugin
+```
+
+**Persistent dev install.** Registers this checkout as a local marketplace and installs the plugin from it, so subsequent `claude` invocations pick it up without flags:
+
+```sh
+bash install/dev-install.sh
+```
+
+The script runs `make build`, validates the manifest, calls `claude plugin marketplace add ./` against this repo, and installs `promptcellar@promptcellar`. Uninstall with `/promptcellar:uninstall` from inside Claude Code (or `claude plugin uninstall promptcellar@promptcellar` from a shell).
+
+> Note: direct cache-dir copies bypassing the `claude plugin marketplace add` + `claude plugin install` flow are silently ignored — Claude Code marks unknown-marketplace entries as `disabled`. Always use `dev-install.sh` (or `--plugin-dir` for ad-hoc tests).
 
 ## Cutting a release
 
