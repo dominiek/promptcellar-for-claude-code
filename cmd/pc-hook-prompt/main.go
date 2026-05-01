@@ -13,7 +13,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"promptcellar/internal/capture"
@@ -57,9 +56,16 @@ func main() {
 		_ = capture.Flush(p.Cwd, capture.PromptsRoot(p.Cwd), state, p.TranscriptPath)
 	}
 
-	matcher, _ := plfignore.Load(filepath.Join(p.Cwd, ".promptcellarignore"))
-	if patternID, matched := matcher.Match(p.Prompt); matched {
-		_ = capture.WriteExcludedStub(p.Cwd, capture.PromptsRoot(p.Cwd), state, "matched .promptcellarignore", patternID)
+	matcher, _ := plfignore.LoadAll(p.Cwd)
+	if r := matcher.Match(p.Prompt); r.Excluded {
+		reason := "matched .promptcellarignore"
+		switch r.Source {
+		case plfignore.SourceGitleaks:
+			reason = "matched built-in secret rule (override via .promptcellarallow)"
+		case plfignore.SourcePII:
+			reason = "matched built-in PII rule (override via .promptcellarallow)"
+		}
+		_ = capture.WriteExcludedStub(p.Cwd, capture.PromptsRoot(p.Cwd), state, reason, r.PatternID)
 		return
 	}
 

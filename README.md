@@ -69,19 +69,78 @@ Enable/disable resolves through three layers, most-restrictive wins:
 2. **Repo** (`.promptcellar/config.json`, committed) — the team's decision.
 3. **Personal** (`.promptcellar/config.local.json`, gitignored) — `--for-me` opt-out within a repo that has capture on.
 
-## Excluding sensitive prompts
+## Log redaction
 
-Drop a `.promptcellarignore` at the repo root. Each line is a POSIX ERE pattern; if it matches the prompt text, the prompt is replaced with an `excluded` stub instead of being written.
+Promptcellar treats every prompt as a log line and runs a built-in **log-redaction** matcher against it before the record is written. When a prompt matches a known secret or PII shape, the captured record is replaced with an `excluded` stub: the timeline preserves the gap (you can see capture was skipped) but the prompt text never touches `.prompts/`.
+
+The matcher composes four layers, evaluated in order:
+
+| Order | Layer | Where it lives | Wins over |
+| --- | --- | --- | --- |
+| 1 | `.promptcellarignore` | Team-authored, committed | everything |
+| 2 | **Built-in secret rules** | Vendored gitleaks default config (MIT) | overridden by allow |
+| 3 | **Built-in PII rules** | Hand-rolled in [`internal/plfignore/pii.go`](./internal/plfignore/pii.go) | overridden by allow |
+| 4 | `.promptcellarallow` | Team-authored, committed | only narrows the built-in layers — never `.promptcellarignore` |
+
+### Built-in secret rules (always on)
+
+The plugin embeds the default rule set from [gitleaks](https://github.com/gitleaks/gitleaks) (MIT-licensed, vendored under `internal/plfignore/vendor/gitleaks/`). At time of vendoring this is **222 rules** covering: AWS / GCP / Azure / DigitalOcean / Heroku / Linode / OVH; GitHub PAT (classic + fine-grained), OAuth, app, refresh; GitLab, Bitbucket, Atlassian; Anthropic, OpenAI, HuggingFace, Cohere; Stripe, Square, PayPal, Twilio, SendGrid, Mailgun, MailChimp; Slack (8+ token shapes), Discord, Telegram; npm, PyPI, RubyGems, Docker Hub; Datadog, NewRelic, PagerDuty, Algolia, Asana, Confluent, Dropbox, Figma, Notion, Postman, Sentry, Shopify, Vercel; plus generic JWT, PEM private keys, and DB connection-string URLs. Every rule ships with gitleaks' false-positive mitigations: keyword pre-filter, Shannon entropy threshold, per-rule allowlists, and a global allowlist that filters template syntax (`${VAR}`, `{{ }}`), placeholder strings ending in `EXAMPLE`, single-character repeats, etc.
+
+Updating the catalog is one curl + commit — see [`internal/plfignore/vendor/gitleaks/README.md`](./internal/plfignore/vendor/gitleaks/README.md).
+
+### Built-in PII rules (always on)
+
+Gitleaks ships zero PII rules, so a small hand-rolled layer fills that gap. Each pattern pairs a regex with a Go validator function that runs after the regex matches — so false positives that pass the shape check but fail the underlying algorithm get rejected.
+
+| ID | Catches | Validation |
+| --- | --- | --- |
+| `credit-card` | Major-issuer card numbers (Visa / MC / Amex / Discover / JCB / Diners) | **Luhn (mod-10)** — order numbers and transaction IDs that happen to be 16 digits don't fire |
+| `iban` | International Bank Account Numbers | **MOD-97** per ISO 13616 — random IBAN-shaped strings are rejected |
+| `us-ssn` | US Social Security Numbers (`XXX-XX-XXXX`) | SSA invalidity rules: rejects 000/666/9XX areas, 00 group, 0000 serial |
+| `email-address` | RFC-5322-lite email addresses | regex only |
+| `phone-number` | International (`+CC …`) and US (`(XXX) XXX-XXXX` / `XXX-XXX-XXXX`) | regex only |
+
+The patterns and validators live in [`internal/plfignore/pii.go`](./internal/plfignore/pii.go). Pattern IDs surface in `excluded.pattern_id` so downstream consumers can bucket-count by category.
+
+### Team additions: `.promptcellarignore` (committed)
+
+Drop a `.promptcellarignore` at the repo root for team-specific deny patterns the built-in layers don't cover — internal API-key prefixes, customer identifiers, paths to security runbooks, etc. Each line is a POSIX ERE pattern; an `id: <name>` line above a pattern names it for `excluded.pattern_id`. Same comment + blank-line conventions as `.gitignore`.
 
 ```
-id: secrets
-(AWS_SECRET_ACCESS_KEY|GITHUB_TOKEN|OPENAI_API_KEY)
+id: internal-api
+\bSECRET_INT_[A-Za-z0-9]{20,}\b
 
-id: credential-shapes
-(ghp_[A-Za-z0-9]{36}|sk-[A-Za-z0-9]{32,})
+id: security-paths
+\bsecurity/(runbooks|incident)\b
 ```
 
-See [`promptcellar-format` SPEC §4](https://github.com/dominiek/promptcellar-format/blob/main/SPEC.md) for the full format.
+`.promptcellarignore` is **authoritative** — a team's deny rule always wins, regardless of any built-in or allow rule.
+
+### Override the built-ins: `.promptcellarallow` (committed)
+
+Same syntax as `.promptcellarignore`, inverse semantics: a `.promptcellarallow` match whitelists the prompt against built-in exclusions. Use it when the catalog is too aggressive — typically because docs or test fixtures contain placeholder values shaped like real tokens.
+
+```
+id: docs-examples
+\bdocs/[^\s]+\.md\b
+
+id: openapi-fixtures
+\btest/fixtures/openapi/\b
+```
+
+`.promptcellarallow` only narrows the built-in layers; it cannot weaken `.promptcellarignore`. Team deny rules are sovereign.
+
+### Resolution order
+
+For each prompt:
+
+1. **`.promptcellarignore` matches?** → exclude. Done. (Team rule is authoritative.)
+2. **Built-in secret or PII rule matches?**
+   - **Also matches `.promptcellarallow`?** → capture normally. (Allow overrides the built-ins.)
+   - **Otherwise** → exclude.
+3. **Otherwise** → capture.
+
+See [`promptcellar-format` SPEC §4](https://github.com/dominiek/promptcellar-format/blob/main/SPEC.md) for the on-disk shape of `excluded` records.
 
 ## Reading your captured data
 
