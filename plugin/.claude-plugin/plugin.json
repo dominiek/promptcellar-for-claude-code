@@ -1,7 +1,7 @@
 {
   "name": "promptcellar",
   "description": "Promptcellar capture for Claude Code — records every prompt and its outcome to .prompts/ in PLF format (plf-1).",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "author": {
     "name": "Promptcellar"
   }

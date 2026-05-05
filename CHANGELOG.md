@@ -4,6 +4,17 @@ All notable changes to the Promptcellar plugin for Claude Code. The on-disk
 [PLF format](https://github.com/dominiek/promptcellar-format) has its own
 changelog.
 
+## v0.5.1 — 2026-05-05
+
+- **Fix `/promptcellar:uninstall`** — the in-app uninstall used to edit only
+  `installed_plugins.json` and `config.json`, leaving the cache directory
+  under `~/.claude/plugins/cache/<marketplace>/promptcellar/` in place. Claude
+  Code kept loading slash commands and hooks from there even after a restart.
+  Uninstall now also removes the cache subtree (including the legacy
+  `cache/local/promptcellar/` path) and drops the dedicated `promptcellar`
+  marketplace from `known_marketplaces.json`. Captured `.prompts/` data is
+  still left intact.
+
 ## v0.5.0 — 2026-05-05
 
 - **Workspace destination** — run `claude` from a directory above multiple

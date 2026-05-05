@@ -33,7 +33,7 @@ import (
 	"promptcellar/internal/plfread"
 )
 
-const Version = "0.5.0"
+const Version = "0.5.1"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -403,67 +403,131 @@ func siblingsDir() string {
 
 // ─── uninstall ──────────────────────────────────────────────────────────────
 
+// cmdUninstall removes every trace of the plugin Claude Code uses to load
+// commands and hooks: the registration in installed_plugins.json, the
+// enabledPlugins entry in config.json, the cache directory under
+// ~/.claude/plugins/cache/<marketplace>/promptcellar/ (which is what kept
+// /promptcellar:* slash commands appearing after older uninstalls), and the
+// dedicated promptcellar marketplace in known_marketplaces.json. Captured
+// .prompts/ data in repos is intentionally left intact.
 func cmdUninstall() int {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		return 1
 	}
-	ipPath := filepath.Join(home, ".claude/plugins/installed_plugins.json")
-	cfgPath := filepath.Join(home, ".claude/plugins/config.json")
 
-	removedFrom := []string{}
+	pluginsDir := filepath.Join(home, ".claude/plugins")
+	ipPath := filepath.Join(pluginsDir, "installed_plugins.json")
+	cfgPath := filepath.Join(pluginsDir, "config.json")
+	kmPath := filepath.Join(pluginsDir, "known_marketplaces.json")
+	cacheDir := filepath.Join(pluginsDir, "cache")
 
+	actions := []string{}
+	marketplaces := map[string]bool{}
+
+	// 1. installed_plugins.json — drop any promptcellar@<marketplace> entries.
 	if data, err := os.ReadFile(ipPath); err == nil {
 		var d map[string]any
 		if err := json.Unmarshal(data, &d); err == nil {
 			if plugins, ok := d["plugins"].(map[string]any); ok {
-				before := len(plugins)
+				changed := false
 				for k := range plugins {
 					if strings.HasPrefix(k, "promptcellar@") {
+						if parts := strings.SplitN(k, "@", 2); len(parts) == 2 {
+							marketplaces[parts[1]] = true
+						}
 						delete(plugins, k)
+						changed = true
 					}
 				}
-				if len(plugins) != before {
+				if changed {
 					out, _ := json.MarshalIndent(d, "", "  ")
-					_ = os.WriteFile(ipPath, out, 0o644)
-					removedFrom = append(removedFrom, ipPath)
+					if err := os.WriteFile(ipPath, out, 0o644); err == nil {
+						actions = append(actions, "removed plugin entry from "+ipPath)
+					}
 				}
 			}
 		}
 	}
 
+	// 2. config.json — drop enabledPlugins["promptcellar@..."].
 	if data, err := os.ReadFile(cfgPath); err == nil {
 		var d map[string]any
 		if err := json.Unmarshal(data, &d); err == nil {
 			if enabled, ok := d["enabledPlugins"].(map[string]any); ok {
-				before := len(enabled)
+				changed := false
 				for k := range enabled {
 					if strings.HasPrefix(k, "promptcellar@") {
 						delete(enabled, k)
+						changed = true
 					}
 				}
-				if len(enabled) != before {
+				if changed {
 					out, _ := json.MarshalIndent(d, "", "  ")
-					_ = os.WriteFile(cfgPath, out, 0o644)
-					removedFrom = append(removedFrom, cfgPath)
+					if err := os.WriteFile(cfgPath, out, 0o644); err == nil {
+						actions = append(actions, "removed enabledPlugins entry from "+cfgPath)
+					}
 				}
 			}
 		}
 	}
 
-	if len(removedFrom) == 0 {
+	// 3. Cache directories — these are what actually feed slash commands and
+	// hooks to Claude Code, and survive both `claude plugin uninstall` and the
+	// pre-0.5.1 in-app uninstall. Walk every marketplace subdir under cache/
+	// and remove any promptcellar/ subtree we find. Also clean the legacy
+	// cache/local/promptcellar/ path used by very old dev installs.
+	if entries, err := os.ReadDir(cacheDir); err == nil {
+		for _, e := range entries {
+			if !e.IsDir() {
+				continue
+			}
+			pcSub := filepath.Join(cacheDir, e.Name(), "promptcellar")
+			if info, err := os.Stat(pcSub); err == nil && info.IsDir() {
+				if err := os.RemoveAll(pcSub); err == nil {
+					actions = append(actions, "removed cache directory "+pcSub)
+					marketplaces[e.Name()] = true
+				}
+			}
+		}
+	}
+	legacy := filepath.Join(cacheDir, "local", "promptcellar")
+	if info, err := os.Stat(legacy); err == nil && info.IsDir() {
+		if err := os.RemoveAll(legacy); err == nil {
+			actions = append(actions, "removed legacy cache directory "+legacy)
+		}
+	}
+
+	// 4. known_marketplaces.json — only drop a marketplace literally named
+	// "promptcellar", since that's the dedicated one we ship. A marketplace
+	// with a different name might host other plugins, so leave it alone even
+	// if it carried promptcellar.
+	if data, err := os.ReadFile(kmPath); err == nil {
+		var d map[string]any
+		if err := json.Unmarshal(data, &d); err == nil {
+			if _, ok := d["promptcellar"]; ok {
+				delete(d, "promptcellar")
+				out, _ := json.MarshalIndent(d, "", "  ")
+				if err := os.WriteFile(kmPath, out, 0o644); err == nil {
+					actions = append(actions, "removed marketplace entry from "+kmPath)
+				}
+			}
+		}
+	}
+
+	if len(actions) == 0 {
 		fmt.Println("No promptcellar plugin entries found to remove.")
 		return 0
 	}
-	sort.Strings(removedFrom)
-	fmt.Println("Removed promptcellar entries from:")
-	for _, p := range removedFrom {
-		fmt.Println(" -", p)
+	sort.Strings(actions)
+	fmt.Println("Uninstalled promptcellar:")
+	for _, a := range actions {
+		fmt.Println(" -", a)
 	}
 	fmt.Println()
 	fmt.Println("Captured .prompts/ data is left in place.")
-	fmt.Println("To remove the plugin files: rm -rf ~/.claude/plugins/cache/local/promptcellar/")
+	fmt.Println("Restart Claude Code to drop loaded slash commands and hooks.")
 	return 0
 }
 
