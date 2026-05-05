@@ -1,6 +1,12 @@
 # Promptcellar for Claude Code
 
-A Claude Code plugin that captures every prompt you send to the agent and stores it in your repo as a structured, append-only log.
+> **Capture every prompt. Own the signal.** A Claude Code plugin that logs every prompt to `.prompts/` in your repo, automatically.
+
+```sh
+curl -fsSL https://get.promptcellar.io/claude-code | sh
+```
+
+![Promptcellar demo](./docs/demo.gif)
 
 The captured data is the **human signal** that built the code — the questions, instructions, and corrections that shaped each commit. With it you can audit who asked the agent to do what, trace a commit back to the prompt that produced it, and keep that history under your team's control instead of in a vendor's database.
 
