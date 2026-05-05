@@ -26,7 +26,7 @@ import (
 
 const (
 	serverName    = "promptcellar"
-	serverVersion = "0.4.0"
+	serverVersion = "0.5.0"
 )
 
 type rpcReq struct {
