@@ -35,11 +35,13 @@ func main() {
 	if p.Cwd == "" || p.SessionID == "" {
 		return
 	}
-	if !config.IsEnabled(p.Cwd) {
+	resolved := config.Resolve(p.Cwd)
+	if !resolved.Enabled {
 		return
 	}
+	root := resolved.Root
 
-	state, _ := capture.Load(p.Cwd, p.SessionID)
+	state, _ := capture.Load(root, p.SessionID)
 	if state == nil {
 		state = &capture.State{
 			SessionID:        p.SessionID,
@@ -53,10 +55,10 @@ func main() {
 	}
 
 	if state.Pending != nil {
-		_ = capture.Flush(p.Cwd, capture.PromptsRoot(p.Cwd), state, p.TranscriptPath)
+		_ = capture.Flush(p.Cwd, root, capture.PromptsRoot(root), state, p.TranscriptPath)
 	}
 
-	matcher, _ := plfignore.LoadAll(p.Cwd)
+	matcher, _ := plfignore.LoadAll(root)
 	if r := matcher.Match(p.Prompt); r.Excluded {
 		reason := "matched .promptcellarignore"
 		switch r.Source {
@@ -65,7 +67,7 @@ func main() {
 		case plfignore.SourcePII:
 			reason = "matched built-in PII rule (override via .promptcellarallow)"
 		}
-		_ = capture.WriteExcludedStub(p.Cwd, capture.PromptsRoot(p.Cwd), state, reason, r.PatternID)
+		_ = capture.WriteExcludedStub(root, capture.PromptsRoot(root), state, reason, r.PatternID)
 		return
 	}
 
@@ -78,7 +80,7 @@ func main() {
 		GitHeadCommit: snap.HeadCommit,
 		GitDirty:      snap.Dirty,
 	}
-	_ = capture.Save(p.Cwd, state)
+	_ = capture.Save(root, state)
 }
 
 func ack() { fmt.Print("{}") }

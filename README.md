@@ -45,9 +45,27 @@ Files land at:
 
 ## Default behaviour
 
-- **On** in any directory where `git rev-parse --is-inside-work-tree` succeeds.
-- **Off** everywhere else — no `.git/`, no capture.
+- **On** in any directory where `git rev-parse --is-inside-work-tree` succeeds — `.prompts/` is created at the repo root.
+- **On with redirection** in any directory whose `.promptcellar/config.json` (or any ancestor's) sets a `destination` — see [Cross-repo workspace](#cross-repo-workspace) below.
+- **Off** everywhere else — no `.git/` and no destination configured, so capture is skipped. `/promptcellar:status` will tell you how to fix it.
 - `.prompts/` and `.promptcellar/config.json` (the repo decision) are intended to be committed. `.promptcellar/state/` and `.promptcellar/config.local.json` are gitignored.
+
+## Cross-repo workspace
+
+If you run `claude` from a directory above multiple repos (e.g. a parent folder containing several services or packages you're editing together), point Promptcellar at a single capture destination so all prompts land in one place — typically a dedicated product/spec/prompt repo for the project.
+
+```
+cd ~/projects/my-product            # parent of api/, web/, infra/ etc.
+/promptcellar:destination ~/projects/my-product-prompts
+```
+
+This writes `.promptcellar/config.json` with a `destination` field at the parent. From then on, any Claude Code session with cwd at that parent (or any descendant) captures prompts to `~/projects/my-product-prompts/.prompts/`. Resolution order:
+
+1. **Workspace destination** — first `.promptcellar/config.json` with a `destination` walking up from cwd. Wins over any git repo underneath, so cross-repo prompts stay unified.
+2. **Git repo** — nearest ancestor that's a git repo (the original behaviour).
+3. **None** — capture is OFF; `/promptcellar:status` will print the command to fix it.
+
+The destination directory itself is normally a git repo you control — version your prompts the same way you version code.
 
 ## Slash commands
 
@@ -58,6 +76,7 @@ All user-facing controls live inside Claude Code. There is no `promptcellar` bin
 /promptcellar:doctor                        # diagnose hook wiring, transcript parser, perms
 /promptcellar:enable  [--for-me] [--global] # opt-in (default scope: repo, committed)
 /promptcellar:disable [--for-me] [--global] # opt-out (default scope: repo, committed)
+/promptcellar:destination [<path>|--clear]  # set/clear/show workspace prompts destination
 /promptcellar:log [N]                       # last N captured prompts in this repo
 /promptcellar:version                       # plugin + transcript-adapter version
 /promptcellar:uninstall                     # remove plugin entry; data is left intact

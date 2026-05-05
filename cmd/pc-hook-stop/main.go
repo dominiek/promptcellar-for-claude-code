@@ -37,11 +37,13 @@ func main() {
 	if p.Cwd == "" || p.SessionID == "" {
 		return
 	}
-	if !config.IsEnabled(p.Cwd) {
+	resolved := config.Resolve(p.Cwd)
+	if !resolved.Enabled {
 		return
 	}
+	root := resolved.Root
 
-	state, _ := capture.Load(p.Cwd, p.SessionID)
+	state, _ := capture.Load(root, p.SessionID)
 	if state == nil || state.Pending == nil {
 		return
 	}
@@ -56,7 +58,7 @@ func main() {
 	// is fully captured at this point regardless.
 	transcript.WaitForRecordSince(p.TranscriptPath, state.Pending.SubmittedAt, transcriptWaitTotal, transcriptWaitInterval)
 
-	_ = capture.Flush(p.Cwd, capture.PromptsRoot(p.Cwd), state, p.TranscriptPath)
+	_ = capture.Flush(p.Cwd, root, capture.PromptsRoot(root), state, p.TranscriptPath)
 }
 
 func ack() { fmt.Print("{}") }

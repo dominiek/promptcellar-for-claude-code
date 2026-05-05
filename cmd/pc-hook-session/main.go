@@ -34,13 +34,15 @@ func main() {
 	if cwd == "" {
 		return
 	}
-	if !config.IsEnabled(cwd) {
+	resolved := config.Resolve(cwd)
+	if !resolved.Enabled {
 		return
 	}
+	root := resolved.Root
 
-	flushOrphans(cwd, p.SessionID)
+	flushOrphans(cwd, root, p.SessionID)
 
-	existing, _ := capture.Load(cwd, p.SessionID)
+	existing, _ := capture.Load(root, p.SessionID)
 
 	state := &capture.State{
 		SessionID:        p.SessionID,
@@ -62,25 +64,25 @@ func main() {
 		}
 	}
 
-	_ = capture.Save(cwd, state)
+	_ = capture.Save(root, state)
 }
 
-func flushOrphans(cwd, currentSessionID string) {
-	others, err := capture.ListOtherSessions(cwd, currentSessionID)
+func flushOrphans(cwd, root, currentSessionID string) {
+	others, err := capture.ListOtherSessions(root, currentSessionID)
 	if err != nil {
 		return
 	}
-	promptsRoot := capture.PromptsRoot(cwd)
+	promptsRoot := capture.PromptsRoot(root)
 	for _, sid := range others {
-		s, err := capture.Load(cwd, sid)
+		s, err := capture.Load(root, sid)
 		if err != nil || s == nil {
-			_ = capture.Delete(cwd, sid)
+			_ = capture.Delete(root, sid)
 			continue
 		}
 		if s.Pending != nil {
-			_ = capture.Flush(cwd, promptsRoot, s, "")
+			_ = capture.Flush(cwd, root, promptsRoot, s, "")
 		}
-		_ = capture.Delete(cwd, sid)
+		_ = capture.Delete(root, sid)
 	}
 }
 

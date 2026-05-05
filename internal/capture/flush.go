@@ -116,7 +116,11 @@ func buildEnrichments(p *Pending, model, transcriptPath string) *plf.Enrichments
 
 // Flush builds the PLF record from state.Pending, appends to JSONL, and clears
 // the pending slot. transcriptPath is consulted for model + enrichments.
-func Flush(cwd, promptsRoot string, s *State, transcriptPath string) error {
+//
+// cwd is the actual working directory used for git operations and
+// files_touched relativisation; root is where state lives (the workspace
+// destination or git repo root — see internal/config.Resolve).
+func Flush(cwd, root, promptsRoot string, s *State, transcriptPath string) error {
 	if s == nil || s.Pending == nil {
 		return nil
 	}
@@ -127,7 +131,7 @@ func Flush(cwd, promptsRoot string, s *State, transcriptPath string) error {
 	}
 	s.LastPromptID = s.Pending.ID
 	s.Pending = nil
-	return Save(cwd, s)
+	return Save(root, s)
 }
 
 // WriteExcludedStub appends an `excluded` record to the session's JSONL when
@@ -137,7 +141,7 @@ func Flush(cwd, promptsRoot string, s *State, transcriptPath string) error {
 //
 // Callers must NOT also buffer a Pending for this prompt — the stub is the
 // final record for it.
-func WriteExcludedStub(cwd, promptsRoot string, s *State, reason, patternID string) error {
+func WriteExcludedStub(root, promptsRoot string, s *State, reason, patternID string) error {
 	if s == nil {
 		return nil
 	}
@@ -170,7 +174,7 @@ func WriteExcludedStub(cwd, promptsRoot string, s *State, reason, patternID stri
 		return err
 	}
 	s.LastPromptID = id
-	return Save(cwd, s)
+	return Save(root, s)
 }
 
 func resolveModel(stateModel, transcriptPath string) string {
