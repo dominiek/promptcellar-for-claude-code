@@ -9,6 +9,9 @@
 //	disable [--for-me|--global]  Same.
 //	log [N]                      Print the last N captured prompts in this repo.
 //	doctor                       Check hook binaries, config, git state.
+//	destination [<path>|--clear] Set/clear/show the workspace prompts destination
+//	                             for cwd (writes cwd/.promptcellar/config.json).
+//	                             Use this when running claude above multiple repos.
 //	version                      Plugin version.
 //	uninstall                    Remove the plugin entry; data is left intact.
 package main
@@ -53,6 +56,8 @@ func main() {
 		os.Exit(cmdLog(cwd, args))
 	case "doctor":
 		os.Exit(cmdDoctor(cwd))
+	case "destination":
+		os.Exit(cmdDestination(cwd, args))
 	case "version":
 		fmt.Println(Version)
 		return
@@ -77,11 +82,16 @@ Usage:
   pc-cli disable [--for-me] [--global]
   pc-cli log [N]
   pc-cli doctor
+  pc-cli destination [<path>|--clear]
   pc-cli version
   pc-cli uninstall
 
 Default scope for enable/disable is the repo (committed .promptcellar/config.json).
---for-me writes the gitignored personal override; --global writes ~/.promptcellar/config.json.`)
+--for-me writes the gitignored personal override; --global writes ~/.promptcellar/config.json.
+
+destination redirects prompt capture to the given directory. Set this in a
+parent folder when running claude above multiple repos, so all prompts land
+in one shared store. Without args, shows the current resolved destination.`)
 }
 
 // ─── status ─────────────────────────────────────────────────────────────────
@@ -94,10 +104,22 @@ func cmdStatus(cwd string, _ []string) int {
 	}
 	fmt.Printf("%s  %s\n", icon, r.Reason)
 	fmt.Printf("     cwd:           %s\n", cwd)
-	fmt.Printf("     prompts dir:   %s\n", capture.PromptsRoot(cwd))
-	fmt.Printf("     state dir:     %s\n", capture.StateRoot(cwd))
+	if r.Source == "none" {
+		fmt.Println("     root:          (none — capture is OFF)")
+		fmt.Println()
+		fmt.Println("To capture prompts in this folder, set a destination:")
+		fmt.Println("  pc-cli destination <path>          (or /promptcellar:destination <path>)")
+		fmt.Println()
+		fmt.Println("Use this when running `claude` above multiple repos and you want all")
+		fmt.Println("prompts to land in one dedicated prompts/spec repo. The destination is")
+		fmt.Printf("written to %s in the current folder.\n", config.RepoConfigFile)
+		return 0
+	}
+	fmt.Printf("     root:          %s  (%s)\n", r.Root, r.Source)
+	fmt.Printf("     prompts dir:   %s\n", capture.PromptsRoot(r.Root))
+	fmt.Printf("     state dir:     %s\n", capture.StateRoot(r.Root))
 
-	records, _ := plfread.ReadAll(capture.PromptsRoot(cwd))
+	records, _ := plfread.ReadAll(capture.PromptsRoot(r.Root))
 	captured, excluded := 0, 0
 	sessions := map[string]struct{}{}
 	for _, rec := range records {
@@ -163,7 +185,13 @@ func cmdLog(cwd string, args []string) int {
 		}
 		n = v
 	}
-	records, err := plfread.ReadAll(capture.PromptsRoot(cwd))
+	r := config.Resolve(cwd)
+	if r.Source == "none" {
+		fmt.Fprintln(os.Stderr, "no prompts root: not in a git repo and no destination configured.")
+		fmt.Fprintln(os.Stderr, "set one with `pc-cli destination <path>`.")
+		return 1
+	}
+	records, err := plfread.ReadAll(capture.PromptsRoot(r.Root))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		return 1
@@ -289,6 +317,79 @@ func cmdDoctor(cwd string) int {
 	if !allOK {
 		return 1
 	}
+	return 0
+}
+
+// ─── destination ────────────────────────────────────────────────────────────
+
+func cmdDestination(cwd string, args []string) int {
+	clear := false
+	dest := ""
+	for _, a := range args {
+		switch {
+		case a == "--clear":
+			clear = true
+		case strings.HasPrefix(a, "--"):
+			fmt.Fprintln(os.Stderr, "unexpected flag:", a)
+			return 2
+		default:
+			if dest != "" {
+				fmt.Fprintln(os.Stderr, "destination accepts a single path argument")
+				return 2
+			}
+			dest = a
+		}
+	}
+
+	if !clear && dest == "" {
+		// Read-only: show resolved destination for cwd.
+		r := config.Resolve(cwd)
+		if r.Source == "none" {
+			fmt.Println("no destination configured and no git repo above cwd.")
+			fmt.Println("set one with: pc-cli destination <path>")
+			return 0
+		}
+		fmt.Printf("root:        %s\n", r.Root)
+		fmt.Printf("source:      %s\n", r.Source)
+		fmt.Printf("prompts dir: %s\n", capture.PromptsRoot(r.Root))
+		return 0
+	}
+
+	if clear {
+		path, err := config.SetDestination(cwd, "")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+			return 1
+		}
+		fmt.Printf("cleared destination in %s\n", path)
+		return 0
+	}
+
+	// Validate the path exists (or warn if it doesn't — we still write).
+	abs := dest
+	if !filepath.IsAbs(abs) {
+		if a, err := filepath.Abs(filepath.Join(cwd, dest)); err == nil {
+			abs = a
+		}
+	}
+	if info, err := os.Stat(abs); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: %s does not exist yet — capture will fail until it is created.\n", abs)
+	} else if !info.IsDir() {
+		fmt.Fprintln(os.Stderr, "error: destination must be a directory:", abs)
+		return 1
+	}
+
+	path, err := config.SetDestination(cwd, dest)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		return 1
+	}
+	fmt.Printf("set destination → %s\n", abs)
+	fmt.Printf("wrote: %s\n", path)
+	fmt.Println()
+	fmt.Println("Open a new Claude Code session in this folder (or any descendant) for")
+	fmt.Println("the change to take effect. Captured prompts will land at:")
+	fmt.Printf("  %s\n", filepath.Join(abs, ".prompts"))
 	return 0
 }
 

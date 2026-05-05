@@ -32,11 +32,13 @@ func main() {
 	if p.Cwd == "" || p.SessionID == "" {
 		return
 	}
-	if !config.IsEnabled(p.Cwd) {
+	resolved := config.Resolve(p.Cwd)
+	if !resolved.Enabled {
 		return
 	}
+	root := resolved.Root
 
-	state, _ := capture.Load(p.Cwd, p.SessionID)
+	state, _ := capture.Load(root, p.SessionID)
 	if state == nil || state.Pending == nil {
 		return
 	}
@@ -56,7 +58,7 @@ func main() {
 		return
 	}
 
-	_ = capture.Save(p.Cwd, state)
+	_ = capture.Save(root, state)
 }
 
 func fileTouchedBy(toolName string, input []byte) string {

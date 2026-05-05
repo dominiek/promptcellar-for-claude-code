@@ -19,6 +19,7 @@ import (
 	"strings"
 
 	"promptcellar/internal/capture"
+	"promptcellar/internal/config"
 	"promptcellar/internal/plf"
 	"promptcellar/internal/plfread"
 )
@@ -155,7 +156,11 @@ func handleToolCall(params json.RawMessage, cwd string) (any, *rpcErr) {
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, &rpcErr{Code: -32602, Message: "invalid params: " + err.Error()}
 	}
-	records, _ := plfread.ReadAll(capture.PromptsRoot(cwd))
+	r := config.Resolve(cwd)
+	if r.Source == "none" {
+		return map[string]any{"matches": []plf.Record{}, "total": 0}, nil
+	}
+	records, _ := plfread.ReadAll(capture.PromptsRoot(r.Root))
 
 	var matches []plf.Record
 	switch p.Name {
