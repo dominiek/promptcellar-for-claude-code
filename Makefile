@@ -56,28 +56,13 @@ cross-build:
 # install the plugin via each of the two supported routes, fire `claude -p`,
 # assert a captured PLF record landed. See test/e2e/README.md for details.
 #
-# Requires ANTHROPIC_API_KEY in the environment (a CI-only key, *not* your
-# personal one). DO NOT mount your host's ~/.claude/ — see the spec.
-E2E_IMAGE := promptcellar-e2e:latest
+# Auth is resolved by test/e2e/run.sh in priority order:
+#   1. $ANTHROPIC_API_KEY env var
+#   2. macOS keychain "Claude Code-credentials"
+#   3. ~/.claude/.credentials.json
+# Whatever the host already uses for `claude` works — no separate key needed.
 test-e2e:
-	@if [ -z "$$ANTHROPIC_API_KEY" ]; then \
-		echo "ANTHROPIC_API_KEY not set — required for E2E tests." >&2 ; \
-		echo "Use a dedicated CI-only key, not your personal Anthropic account." >&2 ; \
-		exit 2 ; \
-	fi
-	docker build -t $(E2E_IMAGE) -f test/e2e/Dockerfile test/e2e
-	@echo "── E2E-A: curl|sh installer ────────────────────────────────────────"
-	docker run --rm \
-		-e ANTHROPIC_API_KEY \
-		-v "$$PWD:/repo:ro" \
-		$(E2E_IMAGE) bash /repo/test/e2e/run-curl-install.sh
-	@echo "── E2E-B: marketplace install + bootstrap ──────────────────────────"
-	docker run --rm \
-		-e ANTHROPIC_API_KEY \
-		-v "$$PWD:/repo:ro" \
-		$(E2E_IMAGE) bash /repo/test/e2e/run-marketplace-install.sh
-	@echo ""
-	@echo "✅ both E2E scenarios passed"
+	bash test/e2e/run.sh
 
 clean:
 	rm -rf $(BIN) dist/

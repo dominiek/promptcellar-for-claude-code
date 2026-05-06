@@ -18,8 +18,11 @@ MARKETPLACE_REPO="${PC_MARKETPLACE:-dominiek/promptcellar-for-claude-code}"
 MARKET_NAME="${PC_MARKET_NAME:-promptcellar}"
 PLUGIN_NAME="${PC_PLUGIN_NAME:-promptcellar}"
 
-if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-  echo 'ANTHROPIC_API_KEY not set — required for `claude -p` round trip' >&2
+# Auth: either an env-var key OR a mounted credentials.json must be present.
+# `test/e2e/run.sh` on the host resolves one of these and supplies it.
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ ! -s "$HOME/.claude/.credentials.json" ]; then
+  echo 'no claude auth in container — neither $ANTHROPIC_API_KEY nor ~/.claude/.credentials.json is set' >&2
+  echo 'this script is meant to be invoked by test/e2e/run.sh, which resolves host auth' >&2
   exit 2
 fi
 

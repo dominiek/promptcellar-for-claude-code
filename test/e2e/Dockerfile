@@ -43,5 +43,9 @@ RUN git config --global user.email "e2e-tester@promptcellar.io" \
 # scripts can call `bash /repo/install/install.sh` and validate against
 # /repo/test/fixtures/plf-1.schema.json without baking either into the image.
 # /work is the throwaway git repo each scenario captures into.
-RUN mkdir -p /home/tester/work
+# ~/.claude/ is pre-created so the host credentials.json mount lands at
+# the expected path with tester ownership (Docker would otherwise create
+# the parent dir as root).
+RUN mkdir -p /home/tester/work /home/tester/.claude \
+ && chmod 700 /home/tester/.claude
 WORKDIR /home/tester/work
