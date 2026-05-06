@@ -20,6 +20,17 @@ curl -fsSL https://get.promptcellar.io/claude-code | sh
 
 This adds `dominiek/promptcellar-for-claude-code` as a Claude Code marketplace and installs the plugin. Open a new Claude Code session in any git repo to start capturing.
 
+### Installing via Claude Code's plugin marketplace
+
+You can also install through Claude Code directly:
+
+```
+/plugin marketplace add dominiek/promptcellar-for-claude-code
+/plugin install promptcellar@promptcellar
+```
+
+The plugin self-bootstraps the platform binaries on first SessionStart by downloading them from the matching GitHub release — no separate install step needed on macOS or Linux. The bootstrap shim is POSIX shell, so **Windows users should use the `curl | sh` installer above (under WSL/Git Bash)** rather than the marketplace flow.
+
 In-session:
 
 ```

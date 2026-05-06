@@ -4,7 +4,7 @@ All notable changes to the Promptcellar plugin for Claude Code. The on-disk
 [PLF format](https://github.com/dominiek/promptcellar-format) has its own
 changelog.
 
-## Unreleased
+## v0.6.0 — 2026-05-06
 
 - **`claude plugin install` is now self-sufficient.** `plugin/bin/` ships
   shell-script shims that the hook manifest points at; on first SessionStart
@@ -14,7 +14,14 @@ changelog.
   binaries are gitignored and only the `curl | sh` installer fetched them.
   The shims are POSIX shell, fall back silently when the bootstrap can't
   run, and are bypassed by `install/install.sh` Phase 2 (which still does
-  an eager fetch so curl users see download progress).
+  an eager fetch so curl users see download progress). Thanks
+  [@andrewplummer](https://github.com/andrewplummer) (#14).
+- **Manifest fields for the official marketplace** — `homepage`,
+  `repository`, `license`, and `keywords` added to `plugin.json` ahead of
+  submission to `claude-plugins-official`.
+- **Docs** — README now documents both the `curl | sh` and
+  `/plugin install` routes, with a Windows note pointing at the curl
+  installer (the bootstrap shim is POSIX shell).
 
 ## v0.5.1 — 2026-05-05
 
