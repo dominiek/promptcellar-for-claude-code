@@ -8,8 +8,10 @@
 *.swo
 *~
 
-# Go build output (Makefile writes binaries here)
-plugin/bin/
+# Go build output: shims live in plugin/bin/ and are committed; real binaries
+# (built by `make build` or downloaded by the SessionStart bootstrap) land in
+# plugin/bin/.real/ and are gitignored.
+plugin/bin/.real/
 *.test
 *.out
 coverage.out
@@ -37,3 +39,5 @@ __pycache__/
 # Logs and scratch
 *.log
 tmp/
+
+.claude/settings.local.json

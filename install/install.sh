@@ -9,9 +9,12 @@
 #      install (direct cache-dir + installed_plugins.json edits result in
 #      disabled-status plugins).
 #   2. Fetch the matching platform tarball from the GitHub release and extract
-#      its `bin/` into the plugin cache. The marketplace flow only ships the
-#      source tree (binaries are gitignored), so this step is mandatory for
-#      hooks to fire.
+#      its compiled binaries into plugin/bin/.real/ in the plugin cache.
+#
+# Phase 2 is no longer strictly mandatory — the SessionStart shim
+# (plugin/bin/pc-hook-session) can do this same fetch on first session — but
+# we run it eagerly so the user sees download progress in the terminal
+# instead of a silent first-session bootstrap.
 
 set -eu
 
@@ -58,7 +61,7 @@ if [ -z "${VER}" ]; then
   exit 1
 fi
 CACHE="${CACHE_BASE}/${VER}"
-echo "==> binary phase: ${PLUGIN_NAME} ${VER} → ${CACHE}/bin"
+echo "==> binary phase: ${PLUGIN_NAME} ${VER} → ${CACHE}/bin/.real"
 
 # Detect platform.
 OS=$(uname -s 2>/dev/null || echo unknown)
@@ -104,15 +107,17 @@ else
 fi
 
 echo "==> extracting bin/ → ${CACHE}/bin"
-mkdir -p "${CACHE}/bin"
+mkdir -p "${CACHE}/bin/.real"
 # Tarball layout (from .github/workflows/release.yml): contents of plugin/ at
-# the tar root, including ./bin/. Extract just the bin/ subtree.
+# the tar root, including ./bin/ (with shims) and ./bin/.real/ (compiled
+# binaries). Extracting the bin/ subtree overlays the shims already in the
+# cache and populates .real/, which is what the hooks actually need.
 tar -xzf "${TMPDIR}/${ASSET}" -C "${CACHE}" "./bin"
 
-# Sanity-check: the six expected binaries should now be in place.
+# Sanity-check: the six expected binaries should now be in place under .real/.
 MISSING=""
 for b in pc-cli pc-hook-prompt pc-hook-session pc-hook-stop pc-hook-tool pc-mcp; do
-  if [ ! -x "${CACHE}/bin/${b}" ]; then
+  if [ ! -x "${CACHE}/bin/.real/${b}" ]; then
     MISSING="${MISSING} ${b}"
   fi
 done

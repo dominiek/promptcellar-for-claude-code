@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+# Promptcellar — UserPromptSubmit hook shim.
+#
+# The 10s timeout on this hook is generous, but a fresh download of the
+# release tarball is too slow to be worth attempting here — SessionStart owns
+# the bootstrap. If the real binary isn't in place yet (because the very
+# first session of this install is still bootstrapping, or the bootstrap
+# failed), exit silently so the user doesn't see hook errors.
+
+set -e
+
+shim_dir=$(cd "$(dirname "$0")" && pwd)
+real="$shim_dir/.real/pc-hook-prompt"
+
+if [ ! -x "$real" ]; then
+  exit 0
+fi
+
+exec "$real" "$@"

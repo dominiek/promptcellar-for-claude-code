@@ -7,7 +7,9 @@
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
-BIN="$REPO/plugin/bin"
+# Tests drive the real Go binaries directly — they live at plugin/bin/.real/
+# (plugin/bin/<name> is a thin shim that just execs there at runtime).
+BIN="$REPO/plugin/bin/.real"
 SCHEMA="$REPO/test/fixtures/plf-1.schema.json"
 
 if [ ! -x "$BIN/pc-hook-session" ]; then

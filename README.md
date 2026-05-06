@@ -228,7 +228,8 @@ plugin/                 # Claude Code plugin bundle
   hooks/hooks.json
   commands/*.md         #   slash commands (AI-driven shells over pc-cli)
   .mcp.json             #   pc-mcp registration
-  bin/                  #   built binaries (gitignored)
+  bin/                  #   committed shell shims that exec .real/<name>
+  bin/.real/            #   built / downloaded Go binaries (gitignored)
 .claude-plugin/         # Marketplace manifest (this repo IS a marketplace)
   marketplace.json
 install/                # `curl | sh` and dev-mode installers
@@ -248,11 +249,11 @@ Requires Go 1.26 or newer. The PLF JSON Schema used by the integration suite is 
 git clone https://github.com/dominiek/promptcellar-for-claude-code.git
 cd promptcellar-for-claude-code
 
-make build               # all six binaries (4 hooks + pc-cli + pc-mcp) into plugin/bin/
+make build               # all six binaries (4 hooks + pc-cli + pc-mcp) into plugin/bin/.real/
 make test                # go test ./...
 make test-all            # unit + M1 + M2 + M3 integration suites (~30s total)
 make cross-build         # darwin/linux/windows × arm64/x64 → dist/<platform>/
-make clean               # rm -rf plugin/bin/ dist/
+make clean               # rm -rf plugin/bin/.real/ dist/
 ```
 
 ### Installing from source

@@ -1,0 +1,20 @@
+#!/usr/bin/env sh
+# Promptcellar — pc-mcp (MCP server) shim.
+#
+# Registered via plugin/.mcp.json. Claude Code spawns this on session start.
+# If the real binary isn't here yet, fail fast — Claude Code will surface the
+# MCP-server error in /mcp, but the rest of the plugin still works (the
+# search/log/touched/session tools simply aren't available until the next
+# session, after SessionStart's bootstrap has populated .real/).
+
+set -e
+
+shim_dir=$(cd "$(dirname "$0")" && pwd)
+real="$shim_dir/.real/pc-mcp"
+
+if [ ! -x "$real" ]; then
+  echo "pc-mcp: platform binary not yet downloaded — bootstrap will run on next session." >&2
+  exit 1
+fi
+
+exec "$real" "$@"
