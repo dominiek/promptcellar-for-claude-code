@@ -293,7 +293,7 @@ func cmdDoctor(cwd string) int {
 		})
 	}
 
-	manifest := filepath.Join(binDir, "..", ".claude-plugin", "plugin.json")
+	manifest := findManifest(binDir)
 	_, err := os.Stat(manifest)
 	checks = append(checks, struct {
 		label string
@@ -399,6 +399,24 @@ func siblingsDir() string {
 		return "."
 	}
 	return filepath.Dir(exe)
+}
+
+// findManifest locates the plugin manifest relative to the binary. The build
+// layout puts compiled binaries in plugin/bin/.real/, so the manifest is two
+// levels up. Older installs (pre-shim) had binaries directly in plugin/bin/,
+// where the manifest was one level up; we accept both so a freshly-built CLI
+// keeps working against an older cache layout during upgrades.
+func findManifest(binDir string) string {
+	candidates := []string{
+		filepath.Join(binDir, "..", "..", ".claude-plugin", "plugin.json"),
+		filepath.Join(binDir, "..", ".claude-plugin", "plugin.json"),
+	}
+	for _, c := range candidates {
+		if _, err := os.Stat(c); err == nil {
+			return c
+		}
+	}
+	return candidates[0]
 }
 
 // ─── uninstall ──────────────────────────────────────────────────────────────

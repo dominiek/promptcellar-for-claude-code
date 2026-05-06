@@ -4,6 +4,18 @@ All notable changes to the Promptcellar plugin for Claude Code. The on-disk
 [PLF format](https://github.com/dominiek/promptcellar-format) has its own
 changelog.
 
+## Unreleased
+
+- **`claude plugin install` is now self-sufficient.** `plugin/bin/` ships
+  shell-script shims that the hook manifest points at; on first SessionStart
+  they download the matching release tarball into `plugin/bin/.real/` and
+  exec the real Go binary. Previously the marketplace install reported
+  success but every hook fired with `No such file or directory` because the
+  binaries are gitignored and only the `curl | sh` installer fetched them.
+  The shims are POSIX shell, fall back silently when the bootstrap can't
+  run, and are bypassed by `install/install.sh` Phase 2 (which still does
+  an eager fetch so curl users see download progress).
+
 ## v0.5.1 — 2026-05-05
 
 - **Fix `/promptcellar:uninstall`** — the in-app uninstall used to edit only

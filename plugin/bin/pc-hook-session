@@ -1,0 +1,28 @@
+#!/usr/bin/env sh
+# Promptcellar — SessionStart hook shim.
+#
+# The marketplace install ships only the plugin source, so the compiled Go
+# binary doesn't exist yet on first run. This shim downloads it from the
+# GitHub release that matches the manifest version, drops it next to itself
+# in .real/, and then execs it. Subsequent hook fires find the binary already
+# in place and skip the bootstrap.
+#
+# If anything in the bootstrap fails (offline, unsupported platform, etc.) we
+# silently ack the hook with `{}` and exit 0 — capture is best-effort and
+# must never block the user's session.
+
+set -e
+
+shim_dir=$(cd "$(dirname "$0")" && pwd)
+real="$shim_dir/.real/pc-hook-session"
+
+if [ ! -x "$real" ]; then
+  # shellcheck source=./_bootstrap.sh
+  . "$shim_dir/_bootstrap.sh"
+  if ! pc_bootstrap "$shim_dir"; then
+    printf '{}'
+    exit 0
+  fi
+fi
+
+exec "$real" "$@"

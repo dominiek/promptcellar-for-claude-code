@@ -1,0 +1,16 @@
+#!/usr/bin/env sh
+# Promptcellar — PostToolUse / PostToolBatch hook shim.
+#
+# 5s timeout — too tight for any kind of network work. SessionStart owns the
+# bootstrap; if the real binary isn't here yet, exit silently.
+
+set -e
+
+shim_dir=$(cd "$(dirname "$0")" && pwd)
+real="$shim_dir/.real/pc-hook-tool"
+
+if [ ! -x "$real" ]; then
+  exit 0
+fi
+
+exec "$real" "$@"

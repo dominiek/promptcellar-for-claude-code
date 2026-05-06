@@ -11,7 +11,7 @@
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
-BIN="$REPO/plugin/bin"
+BIN="$REPO/plugin/bin/.real"
 SCHEMA="$REPO/test/fixtures/plf-1.schema.json"
 
 if [ ! -x "$BIN/pc-hook-tool" ]; then

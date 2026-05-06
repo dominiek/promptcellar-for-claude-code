@@ -44,11 +44,20 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "0"
         run: |
+          # Lay out the release tree:
+          #   dist/plugin/                   ← copied from plugin/ (incl. committed shims)
+          #   dist/plugin/bin/<shims>        ← shell scripts users hit first
+          #   dist/plugin/bin/.real/<bins>   ← compiled Go binaries the shims exec
+          # The shim layer means a bare `claude plugin install` works even
+          # without this tarball; the tarball's job is to ship binaries that
+          # the SessionStart bootstrap (or install/install.sh Phase 2) drops
+          # into .real/.
           mkdir -p dist/plugin
           cp -R plugin/. dist/plugin/
-          mkdir -p dist/plugin/bin
+          mkdir -p dist/plugin/bin/.real
+          chmod +x dist/plugin/bin/pc-hook-session dist/plugin/bin/pc-hook-prompt dist/plugin/bin/pc-hook-tool dist/plugin/bin/pc-hook-stop dist/plugin/bin/pc-cli dist/plugin/bin/pc-mcp
           for cmd in pc-hook-session pc-hook-prompt pc-hook-tool pc-hook-stop pc-cli pc-mcp; do
-            go build -trimpath -ldflags="-s -w" -o "dist/plugin/bin/${cmd}${{ matrix.ext }}" "./cmd/${cmd}"
+            go build -trimpath -ldflags="-s -w" -o "dist/plugin/bin/.real/${cmd}${{ matrix.ext }}" "./cmd/${cmd}"
           done
 
       - name: package tarball

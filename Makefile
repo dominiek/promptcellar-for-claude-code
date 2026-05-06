@@ -1,7 +1,10 @@
 .PHONY: all build clean test test-all install dev-install cross-build
 
 GOFLAGS := -trimpath -ldflags=-s\ -w
-BIN := plugin/bin
+# Real binaries land in .real/ alongside the committed shell shims at plugin/bin/.
+# The shims exec ./.real/<name> at runtime, falling back to a SessionStart
+# bootstrap that downloads the platform tarball when .real/ is empty.
+BIN := plugin/bin/.real
 COMMANDS := pc-hook-session pc-hook-prompt pc-hook-tool pc-hook-stop pc-cli pc-mcp
 
 all: build
@@ -37,11 +40,14 @@ cross-build:
 			windows-x64)  GOOS=windows GOARCH=amd64 ;; \
 		esac ; \
 		out=dist/$$platform/plugin ; \
-		mkdir -p $$out/bin ; \
+		mkdir -p $$out/bin/.real ; \
 		cp -R plugin/.claude-plugin plugin/hooks plugin/commands plugin/.mcp.json $$out/ 2>/dev/null || true ; \
+		for shim in plugin/bin/pc-hook-session plugin/bin/pc-hook-prompt plugin/bin/pc-hook-tool plugin/bin/pc-hook-stop plugin/bin/pc-cli plugin/bin/pc-mcp plugin/bin/_bootstrap.sh ; do \
+			cp $$shim $$out/bin/ ; \
+		done ; \
 		for cmd in $(COMMANDS); do \
 			ext= ; case $$platform in windows-x64) ext=.exe ;; esac ; \
-			GOOS=$$GOOS GOARCH=$$GOARCH CGO_ENABLED=0 go build $(GOFLAGS) -o $$out/bin/$${cmd}$${ext} ./cmd/$$cmd ; \
+			GOOS=$$GOOS GOARCH=$$GOARCH CGO_ENABLED=0 go build $(GOFLAGS) -o $$out/bin/.real/$${cmd}$${ext} ./cmd/$$cmd ; \
 		done ; \
 		echo "$$platform → $$out" ; \
 	done

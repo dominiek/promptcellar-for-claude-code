@@ -1,0 +1,36 @@
+#!/usr/bin/env sh
+# Promptcellar — pc-cli shim.
+#
+# Slash commands (/promptcellar:status etc.) call `pc-cli` via the Bash tool.
+# Claude Code adds plugin bin/ directories to PATH, so the agent finds this
+# shim and we exec the real binary from .real/.
+#
+# Unlike the hook shims, pc-cli runs interactively — if the real binary is
+# missing, print a clear error so the user knows what to do instead of
+# hanging or producing empty output.
+
+set -e
+
+shim_dir=$(cd "$(dirname "$0")" && pwd)
+real="$shim_dir/.real/pc-cli"
+
+if [ ! -x "$real" ]; then
+  cat >&2 <<'EOF'
+pc-cli: platform binary not yet downloaded.
+
+Promptcellar fetches its binaries on the first SessionStart of this install.
+If you're seeing this message:
+
+  • Open a fresh `claude` session in any git repo and wait a few seconds
+    for the SessionStart bootstrap to complete, then re-run the command.
+
+  • Or run the official installer to fetch them eagerly:
+      curl -fsSL https://get.promptcellar.io/claude-code | sh
+
+  • Or build from a checkout:
+      make build && bash install/dev-install.sh
+EOF
+  exit 1
+fi
+
+exec "$real" "$@"

@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+# Promptcellar — Stop hook shim.
+#
+# SessionStart owns the bootstrap; if the real binary isn't here yet, exit
+# silently. The hook protocol expects an empty JSON object on stdout to ack;
+# emit one so the harness doesn't log a parse error.
+
+set -e
+
+shim_dir=$(cd "$(dirname "$0")" && pwd)
+real="$shim_dir/.real/pc-hook-stop"
+
+if [ ! -x "$real" ]; then
+  printf '{}'
+  exit 0
+fi
+
+exec "$real" "$@"
