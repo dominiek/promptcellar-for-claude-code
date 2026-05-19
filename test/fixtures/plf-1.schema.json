@@ -15,6 +15,12 @@
     "model": { "$ref": "#/$defs/model" },
     "prompt": { "type": "string" },
     "git": { "$ref": "#/$defs/git" },
+    "cwd": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Working directory the prompt was issued from, relative to the PLF store root. MUST use forward slashes. MUST NOT be absolute. Omitted when cwd == root.",
+      "not": { "pattern": "^/" }
+    },
     "parent": { "$ref": "#/$defs/parent" },
     "outcome": { "$ref": "#/$defs/outcome" },
     "enrichments": { "$ref": "#/$defs/enrichments" },
@@ -34,6 +40,7 @@
         { "not": { "required": ["outcome"] } },
         { "not": { "required": ["enrichments"] } },
         { "not": { "required": ["git"] } },
+        { "not": { "required": ["cwd"] } },
         { "not": { "required": ["parent"] } }
       ]
     }

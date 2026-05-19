@@ -53,10 +53,41 @@ func TestRecordOmitsOptionalsWhenNil(t *testing.T) {
 		Prompt:    "p",
 	}
 	buf, _ := json.Marshal(rec)
-	for _, key := range []string{`"git"`, `"parent"`, `"outcome"`} {
+	for _, key := range []string{`"git"`, `"cwd"`, `"parent"`, `"outcome"`} {
 		if bytes.Contains(buf, []byte(key)) {
 			t.Fatalf("expected %s to be omitted, got %s", key, buf)
 		}
+	}
+}
+
+// TestRecordCwdEmittedBetweenGitAndParent guards the field order for cwd: it
+// must appear after git and before parent so consumers see a consistent layout.
+func TestRecordCwdEmittedBetweenGitAndParent(t *testing.T) {
+	rec := &Record{
+		Version:   Version,
+		ID:        NewID(),
+		SessionID: "s",
+		Timestamp: "2026-04-29T00:00:00.000Z",
+		Author:    Author{Email: "a@b", Name: "n"},
+		Tool:      Tool{Name: "claude-code", Version: "2.0"},
+		Model:     Model{Provider: "anthropic", Name: "claude-opus-4-7"},
+		Prompt:    "p",
+		Git:       &Git{Branch: "main"},
+		Cwd:       "../sibling-repo",
+		Parent:    &Parent{PromptID: "11111111-1111-4111-8111-111111111111"},
+	}
+	buf, err := json.Marshal(rec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gi := bytes.Index(buf, []byte(`"git"`))
+	ci := bytes.Index(buf, []byte(`"cwd"`))
+	pi := bytes.Index(buf, []byte(`"parent"`))
+	if gi < 0 || ci < 0 || pi < 0 {
+		t.Fatalf("missing key in %s", buf)
+	}
+	if !(gi < ci && ci < pi) {
+		t.Fatalf("expected git < cwd < parent, got %d %d %d in %s", gi, ci, pi, buf)
 	}
 }
 

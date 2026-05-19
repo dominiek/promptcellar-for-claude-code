@@ -20,8 +20,12 @@ const fallbackModel = "claude-opus-4-7"
 //
 // transcriptPath is consulted as a fallback for model.name and to compute
 // enrichments.tokens.* / cost_usd. cwd is used to resolve files_touched paths
-// to repo-relative form and to scan `git log --since` for outcome.commits.
-func BuildRecord(s *State, cwd, transcriptPath string) *plf.Record {
+// to cwd-relative form and to scan `git log --since` for outcome.commits.
+// root is the PLF store root (the folder containing `.prompts/`); when it
+// differs from cwd, the difference is recorded as `rec.Cwd` so consumers can
+// resolve files_touched even when a workspace destination routes prompts from
+// sibling repos into one shared store.
+func BuildRecord(s *State, cwd, root, transcriptPath string) *plf.Record {
 	p := s.Pending
 	model := resolveModel(s.Model, transcriptPath)
 	rec := &plf.Record{
@@ -54,6 +58,7 @@ func BuildRecord(s *State, cwd, transcriptPath string) *plf.Record {
 			Dirty:      p.GitDirty,
 		}
 	}
+	rec.Cwd = relCwd(cwd, root)
 	if s.LastPromptID != "" {
 		rec.Parent = &plf.Parent{PromptID: s.LastPromptID}
 	}
@@ -124,7 +129,7 @@ func Flush(cwd, root, promptsRoot string, s *State, transcriptPath string) error
 	if s == nil || s.Pending == nil {
 		return nil
 	}
-	rec := BuildRecord(s, cwd, transcriptPath)
+	rec := BuildRecord(s, cwd, root, transcriptPath)
 	dest := plf.PathFor(promptsRoot, s.SessionStartedAt, s.SessionID)
 	if err := plf.AppendRecord(dest, rec); err != nil {
 		return err
@@ -196,6 +201,30 @@ func truncate(s string, n int) string {
 		cut--
 	}
 	return strings.TrimRight(s[:cut], " \n\t")
+}
+
+// relCwd returns cwd expressed relative to root. Returns "" when they refer to
+// the same directory (so the field is omitted) or when relativisation fails.
+func relCwd(cwd, root string) string {
+	if cwd == "" || root == "" {
+		return ""
+	}
+	absCwd, err := filepath.Abs(cwd)
+	if err != nil {
+		return ""
+	}
+	absRoot, err := filepath.Abs(root)
+	if err != nil {
+		return ""
+	}
+	if absCwd == absRoot {
+		return ""
+	}
+	rel, err := filepath.Rel(absRoot, absCwd)
+	if err != nil || rel == "." {
+		return ""
+	}
+	return filepath.ToSlash(rel)
 }
 
 func relPaths(cwd string, abs []string) []string {

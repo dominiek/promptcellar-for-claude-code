@@ -21,6 +21,12 @@ type Record struct {
 	Model       Model        `json:"model"`
 	Prompt      string       `json:"prompt,omitempty"`
 	Git         *Git         `json:"git,omitempty"`
+	// Cwd is the working directory the prompt was issued from, expressed as a
+	// path relative to the PLF store root (the folder containing `.prompts/`).
+	// Omitted when cwd == root. Required to disambiguate `outcome.files_touched`
+	// when a workspace destination routes prompts from multiple sibling repos
+	// into one shared store.
+	Cwd         string       `json:"cwd,omitempty"`
 	Parent      *Parent      `json:"parent,omitempty"`
 	Outcome     *Outcome     `json:"outcome,omitempty"`
 	Enrichments *Enrichments `json:"enrichments,omitempty"`
