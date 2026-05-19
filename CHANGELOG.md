@@ -4,6 +4,18 @@ All notable changes to the Promptcellar plugin for Claude Code. The on-disk
 [PLF format](https://github.com/dominiek/promptcellar-format) has its own
 changelog.
 
+## v0.7.0 — 2026-05-19
+
+- **Captured prompts now record `cwd`** — the working directory the prompt
+  was issued from, expressed as a path relative to the PLF store root. Fills
+  the gap where `outcome.files_touched` paths (e.g. `app/sitemap.ts`,
+  `cmd/pc-cli/main.go`) were ambiguous when a workspace destination pooled
+  prompts from multiple sibling repos into one `.prompts/` store. Joining
+  `<store-root>/<cwd>/<files_touched[i]>` now yields a resolvable path.
+  Omitted from records when cwd == root (single-repo capture stays
+  diff-clean) and from excluded stubs. Implements `plf-1`'s new optional
+  `cwd` field — see [PLF spec §3.7](https://github.com/dominiek/promptcellar-format/blob/main/SPEC.md#37-cwd-optional).
+
 ## v0.6.0 — 2026-05-06
 
 - **`claude plugin install` is now self-sufficient.** `plugin/bin/` ships
