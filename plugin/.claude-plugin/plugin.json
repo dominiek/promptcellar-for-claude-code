@@ -1,12 +1,19 @@
 {
   "name": "promptcellar",
   "description": "Promptcellar capture for Claude Code — records every prompt and its outcome to .prompts/ in PLF format (plf-1).",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "author": {
     "name": "Promptcellar"
   },
   "homepage": "https://promptcellar.io",
   "repository": "https://github.com/dominiek/promptcellar-for-claude-code",
   "license": "MIT",
-  "keywords": ["logging", "prompts", "plf", "mcp", "observability", "capture"]
+  "keywords": [
+    "logging",
+    "prompts",
+    "plf",
+    "mcp",
+    "observability",
+    "capture"
+  ]
 }
